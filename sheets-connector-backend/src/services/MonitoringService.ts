@@ -356,4 +356,84 @@ export class MonitoringService {
         // Clear any stuck API progress markers
         this.apiInProgress.clear();
     }
+
+    // Handle real-time updates from Google Drive webhook
+    async handleRealtimeUpdate(resourceId: string): Promise<void> {
+        try {
+            safeLog(`Processing real-time update for resource: ${resourceId}`);
+            
+            // Find all monitoring jobs for this spreadsheet
+            const affectedJobs = Array.from(this.activeJobs.values()).filter(
+                job => job.sheetId === resourceId
+            );
+            
+            if (affectedJobs.length === 0) {
+                safeLog(`No monitoring jobs found for resource: ${resourceId}`);
+                return;
+            }
+            
+            safeLog(`Found ${affectedJobs.length} monitoring jobs for real-time update`);
+            
+            // Process each affected job immediately
+            for (const job of affectedJobs) {
+                try {
+                    safeLog(`Processing real-time update for job: ${job.id}`);
+                    
+                    // Clear cache to force fresh data retrieval
+                    const cacheKey = `${job.sheetId}_${job.cellRange}`;
+                    this.valueCache.delete(cacheKey);
+                    this.lastApiCall.delete(job.sheetId);
+                    this.apiInProgress.delete(job.sheetId);
+                    
+                    // Check for changes immediately
+                    await this.checkForChanges(job);
+                    
+                    safeLog(`Real-time update processed for job: ${job.id}`);
+                } catch (error) {
+                    safeError(`Error processing real-time update for job ${job.id}:`, error);
+                }
+            }
+            
+        } catch (error) {
+            safeError('Error handling real-time update:', error);
+        }
+    }
+
+    // Store push notification channel info for cleanup
+    private pushChannels: Map<string, { channelId: string; resourceId: string }> = new Map();
+
+    async storePushNotificationChannel(sheetId: string, channelId: string, resourceId: string): Promise<void> {
+        try {
+            safeLog(`Storing push notification channel for sheet ${sheetId}: ${channelId}`);
+            this.pushChannels.set(sheetId, { channelId, resourceId });
+        } catch (error) {
+            safeError('Error storing push notification channel:', error);
+        }
+    }
+
+    // Clean up push notification channels when monitoring stops
+    async cleanupPushNotifications(sheetId: string): Promise<void> {
+        try {
+            const channelInfo = this.pushChannels.get(sheetId);
+            if (channelInfo) {
+                safeLog(`Cleaning up push notifications for sheet ${sheetId}`);
+                
+                // Stop the push notification channel
+                await this.googleSheetsService.stopPushNotifications(
+                    channelInfo.channelId, 
+                    channelInfo.resourceId
+                );
+                
+                this.pushChannels.delete(sheetId);
+                safeLog(`Push notifications cleaned up for sheet ${sheetId}`);
+            }
+        } catch (error) {
+            safeError(`Error cleaning up push notifications for sheet ${sheetId}:`, error);
+        }
+    }
+
+    // Get push notification status
+    getPushNotificationStatus(sheetId: string): boolean {
+        return this.pushChannels.has(sheetId);
+    }
 }

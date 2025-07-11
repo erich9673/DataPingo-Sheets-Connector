@@ -400,6 +400,92 @@ app.post('/api/debug/test-notification', async (req, res) => {
     }
 });
 
+// Google Drive Webhook Handler for Real-time Push Notifications
+app.post('/api/webhook/google-drive', async (req, res) => {
+    try {
+        safeLog('Received Google Drive webhook notification');
+        safeLog('Headers:', req.headers);
+        safeLog('Body:', req.body);
+
+        // Verify the webhook notification
+        const isValid = googleSheetsService.verifyWebhookNotification(req.headers);
+        
+        if (!isValid) {
+            safeError('Invalid webhook notification received');
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Invalid webhook notification' 
+            });
+        }
+
+        // Extract information from headers
+        const channelId = req.headers['x-goog-channel-id'] as string;
+        const resourceId = req.headers['x-goog-resource-id'] as string;
+        const resourceState = req.headers['x-goog-resource-state'] as string;
+        const eventType = req.headers['x-goog-resource-uri'] as string;
+
+        safeLog(`Webhook notification - Channel: ${channelId}, Resource: ${resourceId}, State: ${resourceState}`);
+
+        // Only process 'update' events (file changes)
+        if (resourceState === 'update') {
+            safeLog('Processing real-time update notification');
+            
+            // Trigger immediate monitoring check for this specific spreadsheet
+            await monitoringService.handleRealtimeUpdate(resourceId);
+            
+            safeLog('Real-time update processed successfully');
+        } else {
+            safeLog(`Ignoring webhook state: ${resourceState}`);
+        }
+
+        // Always respond with 200 to acknowledge receipt
+        res.status(200).json({ success: true, processed: resourceState === 'update' });
+
+    } catch (error) {
+        safeError('Error processing webhook notification:', error);
+        // Still return 200 to avoid Google retrying
+        res.status(200).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Setup push notifications for a monitoring job
+app.post('/api/monitoring/setup-push', async (req, res) => {
+    try {
+        const { sheetId, webhookUrl } = req.body;
+
+        if (!sheetId) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Sheet ID is required' 
+            });
+        }
+
+        // Use production webhook URL or default
+        const actualWebhookUrl = webhookUrl || `${req.protocol}://${req.get('host')}/api/webhook/google-drive`;
+        
+        safeLog(`Setting up push notifications for sheet: ${sheetId}`);
+        safeLog(`Webhook URL: ${actualWebhookUrl}`);
+
+        const result = await googleSheetsService.setupPushNotifications(sheetId, actualWebhookUrl);
+        
+        if (result.success) {
+            // Store the channel info for cleanup later
+            await monitoringService.storePushNotificationChannel(sheetId, result.channelId!, result.resourceId!);
+        }
+
+        res.json(result);
+    } catch (error) {
+        safeError('Error setting up push notifications:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     safeError('Unhandled error:', err);

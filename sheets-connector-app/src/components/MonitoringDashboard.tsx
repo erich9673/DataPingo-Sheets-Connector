@@ -25,6 +25,8 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   const [userMention, setUserMention] = useState('@channel');
   const [activeJobs, setActiveJobs] = useState<MonitoringJob[]>([]);
   const [loading, setLoading] = useState(false);
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false);
+  const [realtimeSetupLoading, setRealtimeSetupLoading] = useState(false);
 
   // Load active jobs on component mount
   useEffect(() => {
@@ -80,6 +82,33 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
     }
   };
 
+  const setupRealtimeMonitoring = async () => {
+    setRealtimeSetupLoading(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/monitoring/setup-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sheetId: spreadsheet.id,
+          webhookUrl: 'http://localhost:3000/api/webhook/google-drive'
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setRealtimeEnabled(true);
+        alert('🚀 Real-time monitoring enabled! Changes will be detected instantly (0-5 seconds).');
+      } else {
+        alert(`❌ Failed to setup real-time monitoring: ${data.error}`);
+      }
+    } catch (error) {
+      alert('❌ Error setting up real-time monitoring. Please try again.');
+    } finally {
+      setRealtimeSetupLoading(false);
+    }
+  };
+
   const stopMonitoring = async (jobId: string) => {
     try {
       const response = await fetch('http://localhost:3000/api/monitoring/stop', {
@@ -110,6 +139,48 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
       <div className="connector-content">
         <div className="monitoring-setup">
           <h4>📊 Monitor: {spreadsheet.name}</h4>
+          
+          {/* Real-time Monitoring Section */}
+          <div className="realtime-section" style={{ 
+            marginBottom: '20px', 
+            padding: '15px', 
+            border: '2px solid #4CAF50', 
+            borderRadius: '8px',
+            backgroundColor: '#f8fff8'
+          }}>
+            <h5 style={{ color: '#2E7D32', margin: '0 0 10px 0' }}>
+              🚀 Real-time Monitoring (0-5 second latency)
+            </h5>
+            <p style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#555' }}>
+              Enable instant notifications when your Google Sheet changes! No more waiting for polling intervals.
+            </p>
+            
+            {!realtimeEnabled ? (
+              <button
+                onClick={setupRealtimeMonitoring}
+                disabled={realtimeSetupLoading}
+                className="btn-primary"
+                style={{ backgroundColor: '#4CAF50', border: 'none' }}
+              >
+                {realtimeSetupLoading ? '⏳ Setting up...' : '🚀 Enable Real-time Monitoring'}
+              </button>
+            ) : (
+              <div style={{ color: '#2E7D32', fontWeight: 'bold' }}>
+                ✅ Real-time monitoring is active! Changes detected instantly.
+              </div>
+            )}
+          </div>
+
+          {/* Traditional Polling Section */}
+          <div style={{ 
+            padding: '15px', 
+            border: '1px solid #ddd', 
+            borderRadius: '8px',
+            backgroundColor: '#f9f9f9'
+          }}>
+            <h5 style={{ margin: '0 0 15px 0', color: '#666' }}>
+              📅 Backup Polling Monitoring
+            </h5>
           
           <div className="form-group">
             <label htmlFor="cell-range">Cell Range to Monitor:</label>
@@ -158,6 +229,7 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
           >
             {loading ? '🔄 Starting...' : '🚀 Start Monitoring'}
           </button>
+          </div> {/* Close traditional polling section */}
         </div>
 
         {/* Active Monitoring Jobs */}
