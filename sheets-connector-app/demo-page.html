@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PingFrame Sheets Connector - Interactive Demo</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --background-color: #f8fafc;
+            --card-background: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 0.5rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--background-color);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 100" fill="white" opacity="0.05"><polygon points="0,0 1000,0 1000,100 0,20"/></svg>');
+            background-size: cover;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header .subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: var(--primary-color);
+            padding: 1rem 2rem;
+            border-radius: var(--radius);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-md);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Demo Section */
+        .demo-section {
+            padding: 4rem 0;
+            background: white;
+        }
+
+        .demo-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+
+        .demo-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .demo-content p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .demo-features {
+            list-style: none;
+            margin-bottom: 2rem;
+        }
+
+        .demo-features li {
+            padding: 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .demo-features li::before {
+            content: '✓';
+            color: var(--success-color);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* Interactive Demo */
+        .demo-app {
+            background: var(--card-background);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .demo-app-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .demo-app-content {
+            padding: 1.5rem;
+        }
+
+        .demo-step {
+            background: var(--background-color);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .demo-step:hover {
+            box-shadow: var(--shadow-sm);
+        }
+
+        .demo-step h4 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .demo-step p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .demo-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .demo-button {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .demo-button:hover {
+            background: var(--primary-hover);
+        }
+
+        .demo-button.success {
+            background: var(--success-color);
+        }
+
+        .demo-notification {
+            background: var(--success-color);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .demo-notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Features Section */
+        .features-section {
+            padding: 4rem 0;
+            background: var(--background-color);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+        }
+
+        /* Use Cases Section */
+        .use-cases-section {
+            padding: 4rem 0;
+            background: white;
+        }
+
+        .use-cases-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .use-case {
+            background: var(--background-color);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .use-case h4 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .use-case p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 4rem 0;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .cta-section p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .cta-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .cta-secondary:hover {
+            background: white;
+            color: var(--primary-color);
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--text-primary);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        .footer p {
+            opacity: 0.8;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .demo-container {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .demo-content h2 {
+                font-size: 2rem;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1>📊 PingFrame Sheets Connector</h1>
+                <p class="subtitle">Turn your Google Sheets into a powerful monitoring dashboard</p>
+                <a href="#demo" class="cta-button">Try Interactive Demo</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Demo Section -->
+    <section id="demo" class="demo-section">
+        <div class="container">
+            <div class="demo-container">
+                <div class="demo-content">
+                    <h2>See It In Action</h2>
+                    <p>Watch how easy it is to set up intelligent monitoring for your Google Sheets data with custom conditions and instant notifications.</p>
+                    
+                    <ul class="demo-features">
+                        <li>No-code setup in under 5 minutes</li>
+                        <li>Smart condition monitoring</li>
+                        <li>Instant Slack & Teams notifications</li>
+                        <li>Real-time data tracking</li>
+                        <li>Enterprise-grade security</li>
+                    </ul>
+                    
+                    <a href="#download" class="cta-button">Download Free Trial</a>
+                </div>
+                
+                <div class="demo-app">
+                    <div class="demo-app-header">
+                        📊 Sheets Connector Demo
+                    </div>
+                    <div class="demo-app-content">
+                        <div class="demo-step">
+                            <h4>1. Connect to Google Sheets</h4>
+                            <p>Secure OAuth authentication</p>
+                            <button class="demo-button" onclick="demoStep1()">Connect to Google Sheets</button>
+                        </div>
+                        
+                        <div class="demo-step">
+                            <h4>2. Select Your Spreadsheet</h4>
+                            <p>Choose from your existing sheets</p>
+                            <select class="demo-input" onchange="demoStep2()">
+                                <option value="">Select a spreadsheet...</option>
+                                <option value="sales">Sales Dashboard 2024</option>
+                                <option value="inventory">Inventory Tracker</option>
+                                <option value="metrics">KPI Metrics</option>
+                            </select>
+                        </div>
+                        
+                        <div class="demo-step">
+                            <h4>3. Set Up Conditions</h4>
+                            <p>Define what changes trigger notifications</p>
+                            <input type="text" class="demo-input" placeholder="e.g., B2 > 10000" value="Sales > $50,000">
+                            <button class="demo-button" onclick="demoStep3()">Add Condition</button>
+                        </div>
+                        
+                        <div class="demo-step">
+                            <h4>4. Configure Notifications</h4>
+                            <p>Choose where to send alerts</p>
+                            <input type="text" class="demo-input" placeholder="Slack webhook URL" value="https://hooks.slack.com/services/...">
+                            <button class="demo-button success" onclick="demoStep4()">Start Monitoring</button>
+                        </div>
+                        
+                        <div class="demo-notification" id="demo-notification">
+                            🚨 Alert: Sales in B2 exceeded $50,000! Current value: $52,340
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section">
+        <div class="container">
+            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 1rem;">Powerful Features</h2>
+            <p style="text-align: center; font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 2rem;">Everything you need to monitor your data effectively</p>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <h3>Secure OAuth</h3>
+                    <p>Bank-grade security with Google OAuth. No passwords stored, your data stays safe.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Real-time Monitoring</h3>
+                    <p>Check intervals from 10 seconds to 60 minutes. Get notified the moment something changes.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Smart Conditions</h3>
+                    <p>Set up intelligent triggers: greater than, less than, equals, contains text, or any change.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3>Multi-Platform</h3>
+                    <p>Send notifications to Slack, Microsoft Teams, or both simultaneously.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Native Desktop</h3>
+                    <p>Lightweight Electron app runs in the background. No browser tabs, no hassle.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🔧</div>
+                    <h3>No-Code Setup</h3>
+                    <p>Point, click, configure. No technical skills required. Up and running in minutes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="use-cases-section">
+        <div class="container">
+            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 1rem;">Perfect For</h2>
+            <p style="text-align: center; font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 2rem;">See how teams use PingFrame to stay on top of their data</p>
+            
+            <div class="use-cases-grid">
+                <div class="use-case">
+                    <h4>📈 Sales Teams</h4>
+                    <p>Get notified when deals close, quotas are hit, or revenue targets are exceeded.</p>
+                </div>
+                
+                <div class="use-case">
+                    <h4>📊 Marketing Teams</h4>
+                    <p>Monitor campaign performance, lead generation, and conversion rates in real-time.</p>
+                </div>
+                
+                <div class="use-case">
+                    <h4>🏪 E-commerce</h4>
+                    <p>Track inventory levels, reorder points, and sales velocity across all products.</p>
+                </div>
+                
+                <div class="use-case">
+                    <h4>💰 Finance Teams</h4>
+                    <p>Monitor budgets, expenses, cash flow, and financial KPIs with instant alerts.</p>
+                </div>
+                
+                <div class="use-case">
+                    <h4>🏭 Operations</h4>
+                    <p>Track production metrics, quality scores, and operational efficiency indicators.</p>
+                </div>
+                
+                <div class="use-case">
+                    <h4>📋 Project Management</h4>
+                    <p>Get alerts on project milestones, resource allocation, and deadline tracking.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section id="download" class="cta-section">
+        <div class="container">
+            <h2>Ready to Transform Your Data Monitoring?</h2>
+            <p>Join thousands of teams who trust PingFrame to keep them informed</p>
+            <div class="cta-buttons">
+                <a href="#" class="cta-button">Download Free Trial</a>
+                <a href="#" class="cta-button cta-secondary">View Pricing</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 PingFrame. All rights reserved. | Privacy Policy | Terms of Service</p>
+        </div>
+    </footer>
+
+    <script>
+        // Demo interaction functions
+        function demoStep1() {
+            const button = event.target;
+            button.textContent = 'Connected ✓';
+            button.classList.add('success');
+            button.disabled = true;
+            
+            setTimeout(() => {
+                document.querySelector('select').disabled = false;
+            }, 1000);
+        }
+
+        function demoStep2() {
+            const select = event.target;
+            if (select.value) {
+                const inputs = document.querySelectorAll('.demo-input');
+                inputs[1].disabled = false;
+                inputs[2].disabled = false;
+            }
+        }
+
+        function demoStep3() {
+            const button = event.target;
+            button.textContent = 'Condition Added ✓';
+            button.classList.add('success');
+            button.disabled = true;
+            
+            setTimeout(() => {
+                document.querySelectorAll('.demo-button')[3].disabled = false;
+            }, 500);
+        }
+
+        function demoStep4() {
+            const button = event.target;
+            button.textContent = 'Monitoring Active ✓';
+            button.disabled = true;
+            
+            setTimeout(() => {
+                const notification = document.getElementById('demo-notification');
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 5000);
+            }, 2000);
+        }
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add some animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Observe feature cards and use cases
+        document.querySelectorAll('.feature-card, .use-case').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>

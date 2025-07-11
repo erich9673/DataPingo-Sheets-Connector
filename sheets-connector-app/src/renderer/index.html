@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sheets Connector</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --background-color: #f8fafc;
+            --card-background: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 0.5rem;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            margin: 0;
+            padding: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-background);
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            color: white;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header p {
+            margin: 8px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        .setup-section {
+            background: var(--card-background);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .setup-section:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .setup-section h2 {
+            color: var(--text-primary);
+            margin: 0 0 16px 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setup-section h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--primary-color);
+            border-radius: 2px;
+        }
+
+        button {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 8px 0;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: var(--secondary-color);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        button.success {
+            background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+        }
+
+        button.stop {
+            background: linear-gradient(135deg, var(--error-color) 0%, #dc2626 100%);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 16px;
+            margin: 8px 0;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 16px;
+            transition: all 0.2s ease;
+            background: white;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .status {
+            margin: 12px 0;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            display: block;
+        }
+
+        .status.warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            display: block;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-option:hover {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .checkbox-option input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            accent-color: var(--primary-color);
+        }
+
+        .checkbox-option label {
+            font-weight: 500;
+            cursor: pointer;
+            margin: 0;
+            flex: 1;
+        }
+
+        .condition-group {
+            display: flex;
+            gap: 12px;
+            margin: 8px 0;
+            align-items: center;
+        }
+
+        .condition-group select {
+            flex: 1;
+        }
+
+        .condition-group input {
+            flex: 1;
+        }
+
+        .condition-group button {
+            background: var(--error-color);
+            padding: 8px 16px;
+            font-size: 14px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .tracked-cell {
+            background: rgba(37, 99, 235, 0.05);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin: 12px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tracked-cell-info {
+            flex: 1;
+        }
+
+        .tracked-cell button {
+            background: var(--error-color);
+            padding: 6px 12px;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .tracking-section {
+            text-align: center;
+        }
+
+        .tracking-status {
+            background: var(--card-background);
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .tracking-status.active {
+            border-color: var(--success-color);
+            background: rgba(16, 185, 129, 0.05);
+            color: var(--success-color);
+        }
+
+        .tracking-status.stopped {
+            border-color: var(--error-color);
+            background: rgba(239, 68, 68, 0.05);
+            color: var(--error-color);
+        }
+
+        .form-group {
+            margin: 16px 0;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-group small {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 4px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Sheets Connector</h1>
+            <p>Connect Google Sheets to Slack/Teams notifications</p>
+        </div>
+
+        <div class="content">
+            <!-- Section 1: Connect to Google Sheets -->
+            <div class="setup-section">
+                <h2>1. Connect to Google Sheets</h2>
+                <button id="connect-sheets">Connect to Google Sheets</button>
+                <div id="sheets-status" class="status"></div>
+                <div id="auth-section" style="display: none;">
+                    <input type="text" id="auth-code" placeholder="Enter authorization code from Google">
+                    <button id="submit-auth-code">Submit Authorization Code</button>
+                </div>
+            </div>
+
+            <!-- Section 2: Select Spreadsheet -->
+            <div class="setup-section">
+                <h2>2. Select Spreadsheet</h2>
+                <div id="spreadsheet-loading" style="display: none;">
+                    <p>Loading your spreadsheets...</p>
+                </div>
+                <div id="spreadsheet-error" class="status error" style="display: none;"></div>
+                <div id="spreadsheet-selection" style="display: none;">
+                    <label for="spreadsheet-dropdown">Choose a spreadsheet:</label>
+                    <select id="spreadsheet-dropdown">
+                        <option value="">Select a spreadsheet...</option>
+                    </select>
+                </div>
+                <div id="manual-sheet-section" style="display: none;">
+                    <p>Or enter Sheet ID manually:</p>
+                    <input type="text" id="sheet-id" placeholder="Enter Google Sheet ID">
+                    <button id="load-sheet">Load Sheet</button>
+                </div>
+            </div>
+
+            <!-- Section 3: Select Cells to Track -->
+            <div class="setup-section">
+                <h2>3. Select Cells to Track</h2>
+                <div class="form-group">
+                    <label for="sheet-dropdown">Select worksheet:</label>
+                    <select id="sheet-dropdown" style="display: none;">
+                        <option value="">Select a sheet...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="cell-range">Cell Range:</label>
+                    <input type="text" id="cell-range" placeholder="Enter cell range (e.g., A1:B5)" disabled>
+                    <small>Examples: A1, B2:D5, Sheet1!A1:C10</small>
+                </div>
+                <button id="add-cells" disabled>Add Cells to Track</button>
+                <div id="tracked-cells"></div>
+            </div>
+
+            <!-- Section 4: Configure Conditions -->
+            <div class="setup-section">
+                <h2>4. Configure Conditions</h2>
+                <div id="conditions-container">
+                    <div class="condition-group">
+                        <select class="condition-type">
+                            <option value="any">Any change</option>
+                            <option value="greater">Greater than</option>
+                            <option value="less">Less than</option>
+                            <option value="equal">Equal to</option>
+                            <option value="contains">Contains text</option>
+                        </select>
+                        <input type="text" class="condition-value" placeholder="Value" style="display: none;">
+                        <button type="button" class="remove-condition" onclick="removeCondition(this)" style="display: none;">Remove</button>
+                    </div>
+                </div>
+                <button id="add-condition">Add Condition</button>
+            </div>
+
+            <!-- Section 5: Configure Notifications -->
+            <div class="setup-section">
+                <h2>5. Configure Notifications</h2>
+                <div class="checkbox-group">
+                    <div class="checkbox-option">
+                        <input type="checkbox" id="slack-enabled" name="platform" value="slack">
+                        <label for="slack-enabled">Slack notifications</label>
+                    </div>
+                    <input type="text" id="slack-webhook" placeholder="Slack Webhook URL" style="display: none;">
+                    
+                    <div class="checkbox-option">
+                        <input type="checkbox" id="teams-enabled" name="platform" value="teams">
+                        <label for="teams-enabled">Microsoft Teams notifications</label>
+                    </div>
+                    <input type="text" id="teams-webhook" placeholder="MS Teams Webhook URL" style="display: none;">
+                </div>
+                
+                <div class="form-group" id="slack-mention-section" style="display: none;">
+                    <label for="slack-mention">Who to mention in Slack:</label>
+                    <select id="slack-mention">
+                        <option value="">No mention</option>
+                        <option value="@channel">@channel (everyone in channel)</option>
+                        <option value="@here">@here (active members)</option>
+                        <option value="custom">Custom mention</option>
+                    </select>
+                    <input type="text" id="slack-mention-custom" placeholder="e.g., @username or <@U123456789>" style="display: none;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="frequency">Check frequency (minutes):</label>
+                    <input type="number" id="frequency" placeholder="Check frequency (minutes)" min="0.17" max="60" step="0.17" value="1">
+                    <small>Minimum: 10 seconds (0.17 minutes) | Recommended: 1-5 minutes</small>
+                </div>
+            </div>
+
+            <!-- Section 6: Start Tracking -->
+            <div class="setup-section tracking-section">
+                <h2>6. Start Tracking</h2>
+                <button id="start-tracking" disabled>Start Tracking</button>
+                <button id="stop-tracking" style="display: none;" class="stop">Stop Tracking</button>
+                <div id="tracking-status" class="tracking-status">
+                    <p>📊 Configure the settings above to start tracking</p>
+                </div>
+            </div>
+        </div>
+    </div>
+            <small>Minimum: 10 seconds (0.17 minutes) | Recommended: 1-5 minutes</small>
+            <button id="start-tracking" disabled>Start Tracking</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const connectBtn = document.getElementById('connect-sheets');
+            const sheetsStatus = document.getElementById('sheets-status');
+            const authSection = document.getElementById('auth-section');
+            const authCodeInput = document.getElementById('auth-code');
+            const submitAuthBtn = document.getElementById('submit-auth-code');
+            const sheetIdInput = document.getElementById('sheet-id');
+            const loadSheetBtn = document.getElementById('load-sheet');
+            const sheetDropdown = document.getElementById('sheet-dropdown');
+            const cellRangeInput = document.getElementById('cell-range');
+            const addCellsBtn = document.getElementById('add-cells');
+            const trackedCells = document.getElementById('tracked-cells');
+            const startTrackingBtn = document.getElementById('start-tracking');
+            const frequencyInput = document.getElementById('frequency');
+            const slackWebhookInput = document.getElementById('slack-webhook');
+            const teamsWebhookInput = document.getElementById('teams-webhook');
+            
+            // Section 2 elements
+            const spreadsheetDropdown = document.getElementById('spreadsheet-dropdown');
+            const spreadsheetLoading = document.getElementById('spreadsheet-loading');
+            const spreadsheetError = document.getElementById('spreadsheet-error');
+            const spreadsheetSelection = document.getElementById('spreadsheet-selection');
+            const manualSheetSection = document.getElementById('manual-sheet-section');
+            
+            let currentSheetId = '';
+            let currentCellRange = '';
+            let isAuthenticated = false;
+
+            // Function to load user spreadsheets
+            async function loadUserSpreadsheets() {
+                try {
+                    spreadsheetLoading.style.display = 'block';
+                    spreadsheetError.style.display = 'none';
+                    
+                    const result = await ipcRenderer.invoke('get-user-spreadsheets');
+                    
+                    if (result.success && result.spreadsheets && result.spreadsheets.length > 0) {
+                        spreadsheetDropdown.innerHTML = '<option value="">Select a spreadsheet...</option>';
+                        
+                        result.spreadsheets.forEach(sheet => {
+                            const option = document.createElement('option');
+                            option.value = sheet.id;
+                            option.textContent = sheet.name;
+                            spreadsheetDropdown.appendChild(option);
+                        });
+                        
+                        spreadsheetLoading.style.display = 'none';
+                        spreadsheetSelection.style.display = 'block';
+                        manualSheetSection.style.display = 'block';
+                    } else {
+                        throw new Error(result.error || 'No spreadsheets found or Drive API not enabled');
+                    }
+                } catch (error) {
+                    console.error('Error loading spreadsheets:', error);
+                    spreadsheetLoading.style.display = 'none';
+                    spreadsheetError.textContent = `Could not load spreadsheets: ${error.message}. You can still enter a Sheet ID manually below.`;
+                    spreadsheetError.style.display = 'block';
+                    manualSheetSection.style.display = 'block';
+                }
+            }
+
+            // Handle spreadsheet selection
+            spreadsheetDropdown.addEventListener('change', async (e) => {
+                const selectedSheetId = e.target.value;
+                if (selectedSheetId) {
+                    sheetIdInput.value = selectedSheetId;
+                    // Automatically load the selected sheet
+                    loadSheetBtn.click();
+                }
+            });
+
+            // Step 1: Connect to Google Sheets
+            connectBtn.addEventListener('click', async () => {
+                try {
+                    connectBtn.textContent = 'Opening browser...';
+                    connectBtn.disabled = true;
+                    
+                    const result = await ipcRenderer.invoke('authenticate-google-sheets');
+                    
+                    if (result.authUrl) {
+                        sheetsStatus.textContent = 'Browser opened! Please sign in to Google and grant permissions, then copy the authorization code below.';
+                        sheetsStatus.style.display = 'block';
+                        authSection.style.display = 'block';
+                        connectBtn.textContent = 'Waiting for authorization...';
+                    }
+                } catch (error) {
+                    sheetsStatus.textContent = `Error: ${error.message}`;
+                    sheetsStatus.style.backgroundColor = '#f8d7da';
+                    sheetsStatus.style.color = '#721c24';
+                    connectBtn.textContent = 'Connect to Google Sheets';
+                    connectBtn.disabled = false;
+                }
+            });
+
+            // Handle authorization code submission
+            submitAuthBtn.addEventListener('click', async () => {
+                try {
+                    const authCode = authCodeInput.value.trim();
+                    if (!authCode) {
+                        alert('Please enter the authorization code');
+                        return;
+                    }
+                    
+                    submitAuthBtn.textContent = 'Verifying...';
+                    submitAuthBtn.disabled = true;
+                    
+                    const authResult = await ipcRenderer.invoke('set-auth-code', authCode);
+                    if (authResult.success) {
+                        isAuthenticated = true;
+                        sheetsStatus.textContent = 'Connected to Google Sheets!';
+                        authSection.style.display = 'none';
+                        sheetIdInput.style.display = 'block';
+                        loadSheetBtn.style.display = 'block';
+                        connectBtn.textContent = 'Connected ✓';
+                        connectBtn.style.backgroundColor = '#28a745';
+                        
+                        // Load user spreadsheets
+                        await loadUserSpreadsheets();
+                    } else {
+                        throw new Error('Authentication failed');
+                    }
+                } catch (error) {
+                    alert(`Authentication error: ${error.message}`);
+                    submitAuthBtn.textContent = 'Submit Authorization Code';
+                    submitAuthBtn.disabled = false;
+                }
+            });
+
+            // Step 2: Load Sheet
+            loadSheetBtn.addEventListener('click', async () => {
+                try {
+                    const sheetId = sheetIdInput.value.trim();
+                    if (!sheetId) {
+                        alert('Please enter a Google Sheet ID');
+                        return;
+                    }
+                    
+                    loadSheetBtn.textContent = 'Loading...';
+                    loadSheetBtn.disabled = true;
+                    
+                    const result = await ipcRenderer.invoke('get-spreadsheet-info', sheetId);
+                    
+                    if (result.success && result.sheets) {
+                        currentSheetId = sheetId;
+                        sheetDropdown.innerHTML = '<option value="">Select a sheet...</option>';
+                        result.sheets.forEach(sheet => {
+                            const option = document.createElement('option');
+                            option.value = sheet.properties.title;
+                            option.textContent = sheet.properties.title;
+                            sheetDropdown.appendChild(option);
+                        });
+                        
+                        sheetDropdown.style.display = 'block';
+                        cellRangeInput.disabled = false;
+                        addCellsBtn.disabled = false;
+                        loadSheetBtn.textContent = 'Sheet Loaded ✓';
+                        loadSheetBtn.style.backgroundColor = '#28a745';
+                    } else {
+                        throw new Error('Failed to load sheet');
+                    }
+                } catch (error) {
+                    alert(`Error loading sheet: ${error.message}`);
+                    loadSheetBtn.textContent = 'Load Sheet';
+                    loadSheetBtn.disabled = false;
+                }
+            });
+
+            // Step 3: Add cells to track
+            addCellsBtn.addEventListener('click', () => {
+                const cellRange = cellRangeInput.value.trim();
+                if (!cellRange) {
+                    alert('Please enter a cell range');
+                    return;
+                }
+                
+                currentCellRange = cellRange;
+                trackedCells.innerHTML = `
+                    <div style="background: #e8f5e8; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                        <strong>Tracking:</strong> ${cellRange}
+                    </div>
+                `;
+                
+                cellRangeInput.value = '';
+                startTrackingBtn.disabled = false;
+            });
+
+            // Platform selection handlers
+            document.getElementById('slack-enabled').addEventListener('change', (e) => {
+                slackWebhookInput.style.display = e.target.checked ? 'block' : 'none';
+                document.getElementById('slack-mention-section').style.display = e.target.checked ? 'block' : 'none';
+            });
+
+            document.getElementById('teams-enabled').addEventListener('change', (e) => {
+                teamsWebhookInput.style.display = e.target.checked ? 'block' : 'none';
+            });
+
+            // Slack mention selection handler
+            document.getElementById('slack-mention').addEventListener('change', (e) => {
+                const customInput = document.getElementById('slack-mention-custom');
+                customInput.style.display = e.target.value === 'custom' ? 'block' : 'none';
+            });
+
+            // Condition type handlers
+            function handleConditionTypeChange(conditionGroup) {
+                const conditionType = conditionGroup.querySelector('.condition-type');
+                const conditionValue = conditionGroup.querySelector('.condition-value');
+                
+                conditionType.addEventListener('change', (e) => {
+                    const selectedType = e.target.value;
+                    if (selectedType === 'any') {
+                        conditionValue.style.display = 'none';
+                    } else {
+                        conditionValue.style.display = 'block';
+                        
+                        // Update placeholder based on condition type
+                        switch(selectedType) {
+                            case 'greater':
+                                conditionValue.placeholder = 'Enter number (e.g., 100)';
+                                break;
+                            case 'less':
+                                conditionValue.placeholder = 'Enter number (e.g., 50)';
+                                break;
+                            case 'equal':
+                                conditionValue.placeholder = 'Enter value to match';
+                                break;
+                            case 'contains':
+                                conditionValue.placeholder = 'Enter text to search for';
+                                break;
+                            default:
+                                conditionValue.placeholder = 'Enter value';
+                        }
+                    }
+                });
+            }
+
+            // Initialize condition handlers for existing conditions
+            document.querySelectorAll('.condition-group').forEach(handleConditionTypeChange);
+
+            // Add condition button handler
+            document.getElementById('add-condition').addEventListener('click', () => {
+                const conditionsContainer = document.getElementById('conditions-container');
+                const newCondition = document.createElement('div');
+                newCondition.className = 'condition-group';
+                newCondition.innerHTML = `
+                    <select class="condition-type">
+                        <option value="any">Any change</option>
+                        <option value="greater">Greater than</option>
+                        <option value="less">Less than</option>
+                        <option value="equal">Equal to</option>
+                        <option value="contains">Contains text</option>
+                    </select>
+                    <input type="text" class="condition-value" placeholder="Value" style="display: none;">
+                    <button type="button" class="remove-condition" onclick="removeCondition(this)">Remove</button>
+                `;
+                conditionsContainer.appendChild(newCondition);
+                
+                // Initialize handler for the new condition
+                handleConditionTypeChange(newCondition);
+            });
+
+            // Remove condition function
+            window.removeCondition = function(button) {
+                const conditionGroup = button.closest('.condition-group');
+                const conditionsContainer = document.getElementById('conditions-container');
+                
+                // Don't remove if it's the only condition
+                if (conditionsContainer.children.length > 1) {
+                    conditionGroup.remove();
+                }
+            };
+
+            // Step 4: Start tracking
+            startTrackingBtn.addEventListener('click', async () => {
+                try {
+                    const slackEnabled = document.getElementById('slack-enabled').checked;
+                    const teamsEnabled = document.getElementById('teams-enabled').checked;
+                    const frequency = frequencyInput.value;
+                    
+                    if (!slackEnabled && !teamsEnabled) {
+                        alert('Please enable at least one notification platform (Slack or MS Teams)');
+                        return;
+                    }
+                    
+                    if (!frequency) {
+                        alert('Please enter check frequency');
+                        return;
+                    }
+                    
+                    if (!currentSheetId || !currentCellRange) {
+                        alert('Please load a sheet and select cells to track');
+                        return;
+                    }
+                    
+                    let slackWebhookUrl = '';
+                    let teamsWebhookUrl = '';
+                    
+                    if (slackEnabled) {
+                        slackWebhookUrl = slackWebhookInput.value.trim();
+                        if (!slackWebhookUrl) {
+                            alert('Please enter Slack webhook URL');
+                            return;
+                        }
+                    }
+                    
+                    if (teamsEnabled) {
+                        teamsWebhookUrl = teamsWebhookInput.value.trim();
+                        if (!teamsWebhookUrl) {
+                            alert('Please enter MS Teams webhook URL');
+                            return;
+                        }
+                    }
+                    
+                    startTrackingBtn.textContent = 'Starting...';
+                    startTrackingBtn.disabled = true;
+                    
+                    // Get user mention preference
+                    let userMention = '';
+                    if (slackEnabled) {
+                        const mentionSelect = document.getElementById('slack-mention');
+                        const customMention = document.getElementById('slack-mention-custom');
+                        
+                        if (mentionSelect.value === 'custom') {
+                            userMention = customMention.value.trim();
+                        } else if (mentionSelect.value) {
+                            userMention = mentionSelect.value;
+                        }
+                    }
+                    
+                    // For now, we'll use the first enabled platform for the main webhook
+                    const webhookUrl = slackEnabled ? slackWebhookUrl : teamsWebhookUrl;
+                    const result = await ipcRenderer.invoke('start-monitoring', currentSheetId, currentCellRange, parseInt(frequency), webhookUrl, [], userMention);
+                    
+                    if (result.success) {
+                        startTrackingBtn.textContent = '🟢 Tracking Active';
+                        startTrackingBtn.style.backgroundColor = '#28a745';
+                        
+                        const platforms = [];
+                        if (slackEnabled) platforms.push('Slack');
+                        if (teamsEnabled) platforms.push('MS Teams');
+                        
+                        alert(`Started tracking! Will check every ${frequency} minutes and send notifications to ${platforms.join(' and ')}`);
+                    } else {
+                        throw new Error(result.error || 'Failed to start monitoring');
+                    }
+                } catch (error) {
+                    alert(`Error starting tracking: ${error.message}`);
+                    startTrackingBtn.textContent = 'Start Tracking';
+                    startTrackingBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

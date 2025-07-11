@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Google Sheets Connector</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .primary { background: #007cba; color: white; }
+        .success { background: #4CAF50; color: white; }
+        .danger { background: #f44336; color: white; }
+        input[type="text"], input[type="url"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Google Sheets Connector</h1>
+        <p>Connect your Google Sheets to Slack notifications</p>
+
+        <!-- Step 1: Google Authentication -->
+        <div class="step">
+            <h2>Step 1: Connect to Your Google Account</h2>
+            <button id="google-auth" class="primary">🔑 Sign in with Google</button>
+            <div id="auth-status"></div>
+            <div id="auth-code-section" style="display: none;">
+                <input type="text" id="auth-code" placeholder="Enter authorization code from browser">
+                <button id="submit-auth-code" class="success">Submit Code</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Sheet Selection -->
+        <div class="step">
+            <h2>Step 2: Select Your Google Sheet</h2>
+            <input type="text" id="sheet-id" placeholder="Enter Google Sheet ID">
+            <button id="load-sheet" class="primary">Load Sheet</button>
+            <div id="sheet-status"></div>
+        </div>
+
+        <!-- Step 3: Configure Monitoring -->
+        <div class="step">
+            <h2>Step 3: Configure Cell Tracking</h2>
+            <input type="text" id="cell-range" placeholder="Enter cell range (e.g., A1:B5)">
+            <button id="add-cells" class="primary">Add Cells to Track</button>
+            <div id="tracking-status"></div>
+        </div>
+
+        <!-- Step 4: Slack Configuration -->
+        <div class="step">
+            <h2>Step 4: Configure Slack Notifications</h2>
+            <input type="url" id="slack-webhook" placeholder="https://hooks.slack.com/services/..." value="https://hooks.slack.com/services/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">
+            <button id="test-slack" class="success">Test Slack Connection</button>
+            <div id="slack-status"></div>
+        </div>
+
+        <!-- Step 5: Start Monitoring -->
+        <div class="step">
+            <h2>Step 5: Start Monitoring</h2>
+            <label>Check frequency (minutes): <input type="number" id="frequency" value="1" min="1"></label>
+            <button id="start-monitoring" class="success">🟢 Start Tracking</button>
+            <button id="stop-monitoring" class="danger">🔴 Stop Tracking</button>
+            <div id="monitoring-status"></div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

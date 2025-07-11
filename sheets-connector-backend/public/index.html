@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>&#128196; Sheets Connector for Slack</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            background: linear-gradient(135deg, #34a853 0%, #4285f4 30%, #ea4335 70%, #fbbc05 100%);
+            padding: 20px 30px;
+            border-radius: 16px;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+            border: 3px solid rgba(255,255,255,0.2);
+        }
+        
+        .logo::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.15), transparent);
+            transform: rotate(45deg);
+            animation: shine 4s infinite;
+        }
+        
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            50% { transform: translateX(0%) translateY(0%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+        
+        .logo-icon {
+            font-size: 1.4em;
+            margin-right: 15px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .logo-text {
+            font-size: 0.9em;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            letter-spacing: 0.5px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        
+        .section h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        button {
+            background: #28a745;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #218838;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .success {
+            color: #28a745;
+            background: #d4edda;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+        
+        .status.authenticated {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.not-authenticated {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .job-list {
+            margin-top: 15px;
+        }
+        
+        .job-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        
+        .job-item h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .job-item p {
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .inline-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .condition-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            transition: all 0.3s ease;
+        }
+        
+        .condition-item.condition-active {
+            background: #d4edda;
+            border-color: #28a745;
+            box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
+        }
+        
+        .condition-item.condition-active::before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        
+        .condition-item.condition-incomplete {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+        
+        .condition-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .condition-form input, .condition-form select {
+            flex: 1;
+            min-width: 100px;
+        }
+        
+        .inline-form input {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .inline-form button {
+            flex-shrink: 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .condition-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        
+        .condition-item select,
+        .condition-item input {
+            flex: 1;
+            min-width: 80px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        
+        .condition-item button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <div class="logo">
+                <span class="logo-icon">&#128196;&#8651;&#128172;</span>
+                <span class="logo-text">Sheets Connector for Slack</span>
+            </div>
+        </h1>
+        
+        <!-- Step 1: Authentication -->
+        <div class="section">
+            <h2>1. 🔐 Google Sheets Authentication</h2>
+            <div id="auth-status" class="status not-authenticated">
+                Not authenticated
+            </div>
+            <div id="auth-controls">
+                <button id="auth-btn" onclick="authenticate()">Sign in with Google</button>
+                <button id="signout-btn" onclick="signOut()" style="background: #dc3545; margin-left: 10px; display: none;">Sign Out</button>
+                <!-- Manual code entry removed - now uses automatic redirect -->
+            </div>
+        </div>
+        
+        <!-- Step 2: Sheet Selection -->
+        <div class="section">
+            <h2>2. 📊 Select Google Sheet</h2>
+            
+            <!-- Select from your spreadsheets -->
+            <div class="form-group">
+                <label>Select from your Google Drive spreadsheets</label>
+                <button onclick="loadSpreadsheets()" id="load-sheets-btn">Load My Spreadsheets</button>
+                <div id="spreadsheets-loading" class="hidden">
+                    <p>Loading your spreadsheets...</p>
+                </div>
+                <div id="spreadsheets-list" class="hidden">
+                    <select id="spreadsheet-select" onchange="selectSpreadsheet()">
+                        <option value="">Select a spreadsheet...</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Sheet/Tab Selection -->
+            <div class="form-group" id="sheet-tabs-group" style="display: none;">
+                <label>Select sheet/tab within the spreadsheet</label>
+                <div id="sheet-tabs-loading" class="hidden">
+                    <p>Loading sheet tabs...</p>
+                </div>
+                <div id="sheet-tabs-list" class="hidden">
+                    <select id="sheet-tab-select" onchange="selectSheetTab()">
+                        <option value="">Select a sheet tab...</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Hidden input to store the selected sheet ID -->
+            <input type="hidden" id="sheet-id" />
+            
+            <div id="sheet-info"></div>
+        </div>
+        
+        <!-- Step 3: Configure What to Track -->
+        <div class="section">
+            <h2>3. &#127919; Configure What to Track</h2>
+            
+            <div class="form-group">
+                <label for="cell-range">Cell Range to Monitor:</label>
+                <div class="inline-form">
+                    <input type="text" id="cell-range" placeholder="e.g., A1:C10 or F8" value="A1:C10" style="flex: 1;">
+                    <button onclick="validateCellRange()" style="flex-shrink: 0; margin-left: 10px; background: #28a745;">Validate Range</button>
+                </div>
+                <small>💡 Specify the range of cells to monitor for changes</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="tracking-conditions">Notification Conditions (Optional):</label>
+                <div id="conditions-list">
+                    <!-- Dynamic conditions will be added here -->
+                </div>
+                <button onclick="addCondition()" type="button" style="background: #28a745; margin-top: 10px;">+ Add Condition</button>
+                <small>💡 Add conditions like "F8 > 1000" to only get notified when values meet specific criteria. Leave empty to get notified of any change.</small>
+            </div>
+        </div>
+        
+        <!-- Step 4: Slack Configuration -->
+        <div class="section">
+            <h2>4. 📢 Slack Configuration</h2>
+            <div class="form-group">
+                <label for="webhook-url">Slack Webhook URL:</label>
+                <input type="text" id="webhook-url" placeholder="https://hooks.slack.com/services/...">
+            </div>
+            <div class="form-group">
+                <label for="user-mention">Who to mention:</label>
+                <select id="user-mention">
+                    <option value="">No mention</option>
+                    <option value="@channel">@channel (everyone)</option>
+                    <option value="@here">@here (active members)</option>
+                    <option value="custom">Custom mention</option>
+                </select>
+            </div>
+            <div class="form-group hidden" id="custom-mention-group">
+                <label for="custom-mention">Custom mention:</label>
+                <input type="text" id="custom-mention" placeholder="e.g., @username or <@U123456789>">
+            </div>
+            <button onclick="testSlack()">Test Slack Connection</button>
+            <div id="slack-info"></div>
+        </div>
+        
+        <!-- Step 5: Monitoring Setup -->
+        <div class="section">
+            <h2>5. ⏰ Monitoring Setup</h2>
+            <div class="form-group">
+                <label for="frequency">Check frequency (minutes):</label>
+                <input type="number" id="frequency" min="1" max="60" step="1" value="2" onchange="validateFrequency()">
+                <small>Minimum: 1 minute</small>
+            </div>
+            <button onclick="startMonitoring()">🚀 Start Always-On Monitoring</button>
+            <div id="monitoring-info"></div>
+        </div>
+        
+        <!-- Step 6: Active Jobs -->
+        <div class="section">
+            <h2>6. 📋 Active Monitoring Jobs</h2>
+            <button onclick="refreshJobs()">Refresh Jobs</button>
+            <button onclick="stopAllJobs()" style="background: #dc3545; margin-left: 10px;">🛑 Stop All Jobs</button>
+            <div id="jobs-list" class="job-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        
+        // Check authentication status on page load
+        window.addEventListener('load', () => {
+            checkAuthStatus();
+            refreshJobs();
+        });
+        
+        // User mention selection handler
+        document.getElementById('user-mention').addEventListener('change', (e) => {
+            const customGroup = document.getElementById('custom-mention-group');
+            if (e.target.value === 'custom') {
+                customGroup.classList.remove('hidden');
+            } else {
+                customGroup.classList.add('hidden');
+            }
+        });
+        
+        // Conditions management
+        let conditionCounter = 0;
+        
+        function addCondition() {
+            conditionCounter++;
+            const conditionsList = document.getElementById('conditions-list');
+            
+            const conditionDiv = document.createElement('div');
+            conditionDiv.className = 'condition-item';
+            conditionDiv.id = `condition-${conditionCounter}`;
+            
+            conditionDiv.innerHTML = `
+                <div class="condition-form">
+                    <input type="text" placeholder="Cell (e.g., F8)" id="condition-cell-${conditionCounter}" onchange="updateConditionStatus(${conditionCounter})" oninput="updateConditionStatus(${conditionCounter})">
+                    <select id="condition-operator-${conditionCounter}" onchange="updateConditionStatus(${conditionCounter})">
+                        <option value="greater_than">></option>
+                        <option value="less_than"><</option>
+                        <option value="equals">=</option>
+                        <option value="not_equals">≠</option>
+                        <option value="contains">contains</option>
+                        <option value="changed">changed</option>
+                    </select>
+                    <input type="text" placeholder="Value (e.g., 1000)" id="condition-value-${conditionCounter}" onchange="updateConditionStatus(${conditionCounter})" oninput="updateConditionStatus(${conditionCounter})">
+                    <button onclick="removeCondition(${conditionCounter})" style="background: #dc3545;">Remove</button>
+                </div>
+            `;
+            
+            conditionsList.appendChild(conditionDiv);
+        }
+        
+        function updateConditionStatus(id) {
+            const conditionDiv = document.getElementById(`condition-${id}`);
+            const cell = document.getElementById(`condition-cell-${id}`).value.trim();
+            const operator = document.getElementById(`condition-operator-${id}`).value;
+            const value = document.getElementById(`condition-value-${id}`).value.trim();
+            
+            // Remove existing status classes
+            conditionDiv.classList.remove('condition-active', 'condition-incomplete');
+            
+            // Check if condition is complete
+            const needsValue = operator !== 'changed';
+            const isComplete = cell && operator && (!needsValue || value);
+            
+            if (isComplete) {
+                conditionDiv.classList.add('condition-active');
+                conditionDiv.title = `Condition set: ${cell} ${getOperatorSymbol(operator)} ${needsValue ? value : '(any change)'}`;
+            } else if (cell || value) {
+                conditionDiv.classList.add('condition-incomplete');
+                conditionDiv.title = 'Condition incomplete - please fill all required fields';
+            } else {
+                conditionDiv.title = 'Enter condition details';
+            }
+        }
+        
+        function removeCondition(id) {
+            const condition = document.getElementById(`condition-${id}`);
+            if (condition) {
+                condition.remove();
+            }
+        }
+        
+        function getOperatorSymbol(type) {
+            const symbols = {
+                'greater_than': '>',
+                'less_than': '<',
+                'equals': '=',
+                'not_equals': '≠',
+                'contains': 'contains',
+                'changed': 'changed'
+            };
+            return symbols[type] || type;
+        }
+        
+        function getConditions() {
+            const conditions = [];
+            const conditionItems = document.querySelectorAll('.condition-item');
+            
+            conditionItems.forEach(item => {
+                const id = item.id.split('-')[1];
+                const cell = document.getElementById(`condition-cell-${id}`).value.trim();
+                const operator = document.getElementById(`condition-operator-${id}`).value;
+                const value = document.getElementById(`condition-value-${id}`).value.trim();
+                
+                if (cell && operator) {
+                    conditions.push({
+                        type: operator,
+                        cell: cell,
+                        value: value || undefined,
+                        enabled: true
+                    });
+                }
+            });
+            
+            return conditions;
+        }
+        
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/status`);
+                const data = await response.json();
+                
+                const statusEl = document.getElementById('auth-status');
+                const authBtn = document.getElementById('auth-btn');
+                const signoutBtn = document.getElementById('signout-btn');
+                const authCodeSection = document.getElementById('auth-code-section');
+                
+                if (data.authenticated) {
+                    statusEl.textContent = '✅ Authenticated';
+                    statusEl.className = 'status authenticated';
+                    authBtn.style.display = 'none';
+                    signoutBtn.style.display = 'inline-block';
+                    authCodeSection.classList.add('hidden');
+                } else {
+                    statusEl.textContent = '❌ Not authenticated';
+                    statusEl.className = 'status not-authenticated';
+                    authBtn.style.display = 'block';
+                    signoutBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+            }
+        }
+        
+        async function authenticate() {
+            try {
+                console.log('Starting authentication process...');
+                const url = `${API_BASE}/auth/google/url`;
+                const response = await fetch(url, {
+                    method: 'GET'
+                });
+                
+                console.log('Auth response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Auth response data:', data);
+                
+                if (data.success && data.url) {
+                    console.log('Opening auth URL:', data.url);
+                    // Open auth URL in the same window to handle redirect
+                    window.open(data.url, '_blank', 'width=500,height=600');
+                    showSuccess('auth-controls', 'Authentication window opened! Please choose your account and complete the authorization. The window will close automatically when done.');
+                    
+                    // Check auth status periodically
+                    const checkInterval = setInterval(async () => {
+                        try {
+                            const statusResponse = await fetch(`${API_BASE}/auth/status`);
+                            const statusData = await statusResponse.json();
+                            if (statusData.authenticated) {
+                                clearInterval(checkInterval);
+                                checkAuthStatus();
+                                showSuccess('auth-controls', '✅ Authentication completed successfully!');
+                            }
+                        } catch (error) {
+                            console.log('Checking auth status...', error);
+                        }
+                    }, 2000);
+                    
+                    // Stop checking after 5 minutes
+                    setTimeout(() => clearInterval(checkInterval), 300000);
+                } else {
+                    showError('auth-controls', 'Failed to generate auth URL: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Authentication error:', error);
+                showError('auth-controls', 'Error during authentication: ' + error.message);
+            }
+        }
+
+        async function submitAuthCode() {
+            const code = document.getElementById('auth-code').value.trim();
+            if (!code) {
+                showError('auth-controls', 'Please enter the authorization code');
+                return;
+            }
+            
+            try {
+                console.log('Submitting auth code...');
+                const response = await fetch(`${API_BASE}/auth/google/callback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                
+                console.log('Callback response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Callback response data:', data);
+                
+                if (data.success) {
+                    showSuccess('auth-controls', 'Successfully authenticated!');
+                    setTimeout(() => {
+                        checkAuthStatus();
+                    }, 1000);
+                } else {
+                    showError('auth-controls', 'Authentication failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Auth code submission error:', error);
+                showError('auth-controls', 'Error submitting auth code: ' + error.message);
+            }
+        }
+        
+        async function signOut() {
+            try {
+                // Clear any local authentication status
+                localStorage.removeItem('auth_token');
+                
+                // Show signed out status immediately
+                const statusEl = document.getElementById('auth-status');
+                const authBtn = document.getElementById('auth-btn');
+                const signoutBtn = document.getElementById('signout-btn');
+                
+                statusEl.textContent = '❌ Signed out - please authenticate again';
+                statusEl.className = 'status not-authenticated';
+                authBtn.style.display = 'block';
+                signoutBtn.style.display = 'none';
+                
+                // Open Google sign out page to clear browser session
+                window.open('https://accounts.google.com/logout', '_blank');
+                
+                showSuccess('auth-controls', 'Signed out successfully. Please authenticate with the correct account.');
+                
+            } catch (error) {
+                console.error('Sign out error:', error);
+                showError('auth-controls', 'Error signing out: ' + error.message);
+            }
+        }
+        
+        async function loadSpreadsheets() {
+            const loadBtn = document.getElementById('load-sheets-btn');
+            const loadingDiv = document.getElementById('spreadsheets-loading');
+            const listDiv = document.getElementById('spreadsheets-list');
+            const dropdown = document.getElementById('spreadsheet-select');
+            
+            try {
+                // Show loading state
+                loadBtn.disabled = true;
+                loadBtn.textContent = 'Loading...';
+                loadingDiv.classList.remove('hidden');
+                listDiv.classList.add('hidden');
+                
+                console.log('Loading user spreadsheets...');
+                const response = await fetch(`${API_BASE}/sheets/spreadsheets`);
+                
+                console.log('Spreadsheets response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Spreadsheets response data:', data);
+                
+                if (data.success && data.spreadsheets && data.spreadsheets.length > 0) {
+                    // Clear existing options
+                    dropdown.innerHTML = '<option value="">Select a spreadsheet...</option>';
+                    
+                    // Add spreadsheets to dropdown
+                    data.spreadsheets.forEach(sheet => {
+                        const option = document.createElement('option');
+                        option.value = sheet.id;
+                        option.textContent = sheet.name;
+                        dropdown.appendChild(option);
+                    });
+                    
+                    // Show the dropdown
+                    loadingDiv.classList.add('hidden');
+                    listDiv.classList.remove('hidden');
+                    loadBtn.textContent = `Loaded ${data.spreadsheets.length} spreadsheets`;
+                    loadBtn.style.background = '#28a745';
+                    
+                    showSuccess('sheet-info', `Found ${data.spreadsheets.length} spreadsheets in your Google Drive`);
+                } else if (data.success && data.spreadsheets && data.spreadsheets.length === 0) {
+                    throw new Error('No spreadsheets found in your Google Drive');
+                } else {
+                    throw new Error(data.error || 'Failed to load spreadsheets');
+                }
+            } catch (error) {
+                console.error('Error loading spreadsheets:', error);
+                loadingDiv.classList.add('hidden');
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load My Spreadsheets';
+                loadBtn.style.background = '#28a745';
+                
+                if (error.message.includes('No access, refresh token')) {
+                    showError('sheet-info', '🔐 Please authenticate with Google first before loading spreadsheets');
+                } else if (error.message.includes('Drive API')) {
+                    showError('sheet-info', '⚠️ Drive API Not Enabled for Your Project<br><br>' +
+                        '<strong>Your Google Cloud Project ID: 60189191818</strong><br><br>' +
+                        '<strong>Click this direct link to enable:</strong><br>' +
+                        '<a href="https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=60189191818" target="_blank" style="color: #007bff; font-weight: bold;">🔗 Enable Drive API for Project 60189191818</a><br><br>' +
+                        '<strong>Steps:</strong><br>' +
+                        '1. Click the link above<br>' +
+                        '2. Click "ENABLE" button<br>' +
+                        '3. Wait 2-3 minutes for propagation<br>' +
+                        '4. Come back and click "Load My Spreadsheets"');
+                } else if (error.message.includes('Authentication expired')) {
+                    showError('sheet-info', '🔄 Your authentication has expired. Please re-authenticate in Step 1');
+                } else {
+                    showError('sheet-info', '❌ Error loading spreadsheets: ' + error.message + '<br><br>Please try again or check your Google Drive permissions.');
+                }
+            }
+        }
+        
+        async function loadSpreadsheetsFallback() {
+            // Fallback method when Drive API is not available
+            const loadBtn = document.getElementById('load-sheets-btn');
+            const listDiv = document.getElementById('spreadsheets-list');
+            const dropdown = document.getElementById('spreadsheet-select');
+            
+            loadBtn.textContent = 'Drive API Not Available';
+            loadBtn.disabled = true;
+            loadBtn.style.background = '#ccc';
+            
+            showError('sheet-info', '📋 Drive API Access Required<br><br>' +
+                '<strong>Quick Setup Guide:</strong><br>' +
+                '1. Go to <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" style="color: #007bff;">Google Cloud Console - Drive API</a><br>' +
+                '2. Click "Enable"<br>' +
+                '3. Return here and re-authenticate<br>' +
+                '4. Try loading spreadsheets again');
+        }
+
+        async function checkDriveAPIStatus() {
+            try {
+                const loadBtn = document.getElementById('load-sheets-btn');
+                loadBtn.textContent = 'Checking API Status...';
+                loadBtn.disabled = true;
+                
+                const response = await fetch(`${API_BASE}/sheets/spreadsheets`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('sheet-info', '✅ Drive API is working! Spreadsheets loaded successfully.');
+                    // Trigger the actual loading
+                    loadSpreadsheets();
+                } else if (data.error && data.error.includes('Drive API')) {
+                    showError('sheet-info', '❌ Drive API is still not enabled. Please wait a few more minutes and try again.');
+                } else {
+                    showError('sheet-info', '❌ Error: ' + data.error);
+                }
+                
+                loadBtn.textContent = 'Load My Spreadsheets';
+                loadBtn.disabled = false;
+                
+            } catch (error) {
+                showError('sheet-info', '❌ Error checking API status: ' + error.message);
+                const loadBtn = document.getElementById('load-sheets-btn');
+                loadBtn.textContent = 'Load My Spreadsheets';
+                loadBtn.disabled = false;
+            }
+        }
+
+        async function selectSpreadsheet() {
+            const dropdown = document.getElementById('spreadsheet-select');
+            const sheetIdInput = document.getElementById('sheet-id');
+            const sheetTabsGroup = document.getElementById('sheet-tabs-group');
+            const sheetTabsLoading = document.getElementById('sheet-tabs-loading');
+            const sheetTabsList = document.getElementById('sheet-tabs-list');
+            const sheetTabSelect = document.getElementById('sheet-tab-select');
+            
+            if (dropdown.value) {
+                // Store the selected spreadsheet ID
+                sheetIdInput.value = dropdown.value;
+                showSuccess('sheet-info', `Selected: ${dropdown.options[dropdown.selectedIndex].text}`);
+                console.log('Selected spreadsheet ID:', dropdown.value);
+                
+                // Show sheet tabs selection and load tabs
+                sheetTabsGroup.style.display = 'block';
+                sheetTabsLoading.classList.remove('hidden');
+                sheetTabsList.classList.add('hidden');
+                
+                try {
+                    // Load sheet tabs/worksheets
+                    const response = await fetch(`${API_BASE}/sheets/${dropdown.value}/info`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Sheet info response:', data);
+                    
+                    if (data.success && data.sheets && data.sheets.length > 0) {
+                        // Clear existing options
+                        sheetTabSelect.innerHTML = '<option value="">Select a sheet tab...</option>';
+                        
+                        // Add sheet tabs to dropdown
+                        data.sheets.forEach((sheet, index) => {
+                            const option = document.createElement('option');
+                            option.value = sheet.properties.title;
+                            option.textContent = `${sheet.properties.title} (Sheet ${sheet.properties.index + 1})`;
+                            sheetTabSelect.appendChild(option);
+                        });
+                        
+                        // Show the dropdown
+                        sheetTabsLoading.classList.add('hidden');
+                        sheetTabsList.classList.remove('hidden');
+                        
+                        showSuccess('sheet-info', `Found ${data.sheets.length} sheet tabs in "${dropdown.options[dropdown.selectedIndex].text}"`);
+                    } else {
+                        throw new Error(data.error || 'Failed to load sheet tabs');
+                    }
+                } catch (error) {
+                    console.error('Error loading sheet tabs:', error);
+                    sheetTabsLoading.classList.add('hidden');
+                    showError('sheet-info', '❌ Error loading sheet tabs: ' + error.message);
+                }
+            } else {
+                // Hide sheet tabs if no spreadsheet selected
+                sheetTabsGroup.style.display = 'none';
+                sheetIdInput.value = '';
+                showSuccess('sheet-info', '');
+            }
+        }
+
+        function selectSheetTab() {
+            const sheetTabSelect = document.getElementById('sheet-tab-select');
+            const selectedTab = sheetTabSelect.value;
+            
+            if (selectedTab) {
+                showSuccess('sheet-info', `Selected sheet tab: "${selectedTab}"`);
+                console.log('Selected sheet tab:', selectedTab);
+                
+                // Update the cell range to include the sheet name if it doesn't already
+                const cellRangeInput = document.getElementById('cell-range');
+                let currentRange = cellRangeInput.value.trim() || 'A1:C10';
+                
+                // If the range doesn't already have a sheet name, add it
+                if (!currentRange.includes('!')) {
+                    cellRangeInput.value = `${selectedTab}!${currentRange}`;
+                } else {
+                    // Replace existing sheet name with selected one
+                    const rangePart = currentRange.split('!')[1];
+                    cellRangeInput.value = `${selectedTab}!${rangePart}`;
+                }
+                
+                console.log('Updated cell range:', cellRangeInput.value);
+            }
+        }
+
+        function validateFrequency() {
+            const frequencyInput = document.getElementById('frequency');
+            const frequency = parseFloat(frequencyInput.value);
+            
+            // Ensure minimum 1 minute
+            if (frequency < 1) {
+                frequencyInput.value = "1";
+            }
+        }
+
+        async function validateCellRange() {
+            const sheetId = document.getElementById('sheet-id').value.trim();
+            const cellRange = document.getElementById('cell-range').value.trim();
+            
+            if (!sheetId || !cellRange) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/sheets/${sheetId}/values/${encodeURIComponent(cellRange)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const values = data.values || [];
+                    const rowCount = values.length;
+                    const colCount = Math.max(...values.map(row => row.length));
+                    showSuccess('sheet-info', `✅ Valid range! Found ${rowCount} rows × ${colCount} columns with data`);
+                } else {
+                    showError('sheet-info', '❌ Invalid range: ' + data.error);
+                }
+            } catch (error) {
+                showError('sheet-info', '❌ Error validating range: ' + error.message);
+            }
+        }
+
+        async function testSlack() {
+            const webhookUrl = document.getElementById('webhook-url').value.trim();
+            
+            if (!webhookUrl) {
+                showError('slack-info', 'Please enter Slack webhook URL');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/slack/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ webhookUrl })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('slack-info', 'Slack connection successful! Check your channel.');
+                } else {
+                    showError('slack-info', 'Slack test failed: ' + data.error);
+                }
+            } catch (error) {
+                showError('slack-info', 'Error testing Slack: ' + error.message);
+            }
+        }
+        
+        async function startMonitoring() {
+            const sheetId = document.getElementById('sheet-id').value.trim();
+            const cellRange = document.getElementById('cell-range').value.trim();
+            const webhookUrl = document.getElementById('webhook-url').value.trim();
+            const frequency = parseFloat(document.getElementById('frequency').value);
+            
+            let userMention = document.getElementById('user-mention').value;
+            if (userMention === 'custom') {
+                userMention = document.getElementById('custom-mention').value.trim();
+            }
+            
+            // Get the conditions
+            const conditions = getConditions();
+            
+            if (!sheetId || !cellRange || !webhookUrl || !frequency) {
+                showError('monitoring-info', 'Please fill in all required fields');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sheetId,
+                        cellRange,
+                        webhookUrl,
+                        frequencyMinutes: frequency,
+                        userMention,
+                        conditions
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('monitoring-info', `Monitoring started! Job ID: ${data.jobId}`);
+                    refreshJobs();
+                } else {
+                    showError('monitoring-info', 'Failed to start monitoring: ' + data.error);
+                }
+            } catch (error) {
+                showError('monitoring-info', 'Error starting monitoring: ' + error.message);
+            }
+        }
+        
+        async function refreshJobs() {
+            try {
+                console.log('Refreshing jobs...');
+                console.log('API_BASE:', API_BASE);
+                console.log('Full URL:', `${API_BASE}/monitoring/jobs`);
+                
+                const response = await fetch(`${API_BASE}/monitoring/jobs`);
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response text:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Jobs data:', data);
+                
+                const jobsList = document.getElementById('jobs-list');
+                
+                if (data.success && data.jobs && data.jobs.length > 0) {
+                    jobsList.innerHTML = data.jobs.map(job => {
+                        let currentValuesHtml = '';
+                        if (job.currentValues && job.currentValues.length > 0) {
+                            currentValuesHtml = `
+                                <div style="margin-top: 10px;">
+                                    <strong>📊 Current Values:</strong>
+                                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-top: 5px; background: #f8f9fa; border-radius: 4px;">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                            <tbody>
+                                                ${job.currentValues.map((row, rowIndex) => `
+                                                    <tr>
+                                                        ${row.map((cell, colIndex) => `
+                                                            <td style="border: 1px solid #ddd; padding: 4px; text-align: left;">
+                                                                <strong>${String.fromCharCode(65 + colIndex)}${rowIndex + 1}:</strong> ${cell || '(empty)'}
+                                                            </td>
+                                                        `).join('')}
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            currentValuesHtml = '<p><strong>📊 Current Values:</strong> No data available yet</p>';
+                        }
+                        
+                        // Display conditions if any
+                        let conditionsHtml = '';
+                        if (job.conditions && job.conditions.length > 0) {
+                            conditionsHtml = `
+                                <div style="margin-top: 10px;">
+                                    <strong>⚙️ Conditions:</strong>
+                                    <ul style="margin: 5px 0; padding-left: 20px;">
+                                        ${job.conditions.map(condition => `
+                                            <li>${condition.cell || 'Any cell'} ${getOperatorSymbol(condition.type)} ${condition.value || 'changed'}</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            `;
+                        }
+                        
+                        return `
+                            <div class="job-item">
+                                <h4>🔄 Job: ${job.id.substring(0, 8)}...</h4>
+                                <p><strong>📋 Sheet:</strong> ${job.spreadsheetName || job.sheetId}</p>
+                                <p><strong>📍 Range:</strong> ${job.cellRange}</p>
+                                <p><strong>⏱️ Frequency:</strong> ${job.frequencyMinutes} minutes</p>
+                                <p><strong>💬 Mention:</strong> ${job.userMention || 'None'}</p>
+                                <p><strong>🔴 Status:</strong> ${job.isActive ? '🟢 Active' : '🔴 Inactive'}</p>
+                                <p><strong>📅 Created:</strong> ${new Date(job.createdAt).toLocaleString()}</p>
+                                <p><strong>🕐 Last Checked:</strong> ${job.lastChecked ? new Date(job.lastChecked).toLocaleString() : 'Never'}</p>
+                                ${conditionsHtml}
+                                ${currentValuesHtml}
+                                <button onclick="stopJob('${job.id}')" style="background: #dc3545; margin-top: 10px;">🛑 Stop Job</button>
+                                <button onclick="refreshSingleJob('${job.id}')" style="background: #28a745; margin-top: 10px; margin-left: 10px;">🔄 Refresh This Job</button>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    jobsList.innerHTML = '<p>No active monitoring jobs</p>';
+                }
+            } catch (error) {
+                console.error('Error refreshing jobs:', error);
+                document.getElementById('jobs-list').innerHTML = '<p style="color: red;">Error loading jobs: ' + error.message + '</p>';
+            }
+        }
+        
+        async function stopAllJobs() {
+            if (!confirm('Are you sure you want to stop all monitoring jobs? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/monitoring/stop-all`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Stopped ${data.stoppedCount || 0} monitoring jobs successfully`);
+                    refreshJobs();
+                } else {
+                    alert('Failed to stop jobs: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error stopping jobs: ' + error.message);
+            }
+        }
+        
+        function showSuccess(parentId, message) {
+            showMessage(parentId, message, 'success');
+        }
+        
+        function showError(parentId, message) {
+            showMessage(parentId, message, 'error');
+        }
+        
+        function showMessage(parentId, message, type) {
+            const parent = document.getElementById(parentId);
+            const existing = parent.querySelector('.success, .error');
+            if (existing) {
+                existing.remove();
+            }
+            
+            const div = document.createElement('div');
+            div.className = type;
+            // Check if message contains HTML tags
+            if (message.includes('<') && message.includes('>')) {
+                div.innerHTML = message;
+            } else {
+                div.textContent = message;
+            }
+            parent.appendChild(div);
+        }
+    </script>
+</body>
+</html>

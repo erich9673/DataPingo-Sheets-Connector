@@ -1,0 +1,39 @@
+{
+  "appId": "com.example.sheetsconnector",
+  "productName": "Sheets Connector",
+  "files": [
+    "dist/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "directories": {
+    "output": "build"
+  },
+  "mac": {
+    "category": "public.app-category.productivity",
+    "target": [
+      "dmg",
+      "zip"
+    ]
+  },
+  "win": {
+    "target": [
+      "nsis",
+      "zip"
+    ],
+    "icon": "build/icon.ico"
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "icon": "build/icon.png"
+  },
+  "build": {
+    "asar": true,
+    "extraResources": [
+      "assets/**/*"
+    ]
+  }
+}
