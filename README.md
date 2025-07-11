@@ -4,6 +4,8 @@
 
 *Set it once, forget it forever!* ⚡
 
+**Status: Deploying to Production** 🚀
+
 ## ✨ Features
 
 - **🔥 Real-time Monitoring**: 0-5 second latency with Google Drive Push Notifications
