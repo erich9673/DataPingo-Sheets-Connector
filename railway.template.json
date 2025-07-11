@@ -1,0 +1,40 @@
+{
+  "name": "DataPingo Sheets Connector",
+  "description": "Real-time Google Sheets to Slack monitoring with instant notifications (0-5 second latency)",
+  "tags": ["sheets", "slack", "monitoring", "real-time", "webhooks"],
+  "repository": "https://github.com/erichuang2003/DataPingo-Sheets-Connector",
+  "services": [
+    {
+      "name": "backend",
+      "source": {
+        "type": "git",
+        "repo": "https://github.com/erichuang2003/DataPingo-Sheets-Connector",
+        "branch": "main"
+      },
+      "build": {
+        "buildCommand": "cd sheets-connector-backend && npm install && npm run build",
+        "startCommand": "cd sheets-connector-backend && npm start"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "GOOGLE_CLIENT_ID": {
+          "description": "Google OAuth Client ID from Google Cloud Console",
+          "required": true
+        },
+        "GOOGLE_CLIENT_SECRET": {
+          "description": "Google OAuth Client Secret from Google Cloud Console", 
+          "required": true
+        },
+        "PRODUCTION_REDIRECT_URI": {
+          "description": "OAuth redirect URI (will be https://your-app.railway.app/auth/callback)",
+          "default": "https://your-app.railway.app/auth/callback"
+        }
+      },
+      "healthcheck": {
+        "path": "/health",
+        "timeout": 300
+      }
+    }
+  ]
+}

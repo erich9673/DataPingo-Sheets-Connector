@@ -1,0 +1,33 @@
+{
+  "name": "datapingo-sheets-connector",
+  "version": "1.0.0",
+  "description": "DataPingo Sheets Connector - Real-time Google Sheets to Slack monitoring with instant notifications",
+  "main": "sheets-connector-backend/dist/server.js",
+  "scripts": {
+    "start": "cd sheets-connector-backend && npm start",
+    "build": "cd sheets-connector-backend && npm install && npm run build",
+    "dev": "cd sheets-connector-backend && npm run dev",
+    "frontend": "cd sheets-connector-app && npm start",
+    "install-all": "cd sheets-connector-backend && npm install && cd ../sheets-connector-app && npm install"
+  },
+  "keywords": [
+    "google-sheets",
+    "slack",
+    "monitoring",
+    "real-time",
+    "datapingo",
+    "automation",
+    "webhooks",
+    "notifications"
+  ],
+  "author": "DataPingo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erichuang2003/DataPingo-Sheets-Connector.git"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
