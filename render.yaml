@@ -4,8 +4,8 @@ services:
     env: node
     plan: starter
     runtime: node
-    buildCommand: cd sheets-connector-backend && npm install
-    startCommand: cd sheets-connector-backend && npm start
+    buildCommand: npm install
+    startCommand: node test-server.js
     envVars:
       - key: NODE_ENV
         value: production
