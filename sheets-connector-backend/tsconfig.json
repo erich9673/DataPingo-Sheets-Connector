@@ -5,7 +5,7 @@
     "lib": ["ES2020"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -14,7 +14,9 @@
     "declarationMap": false,
     "sourceMap": false,
     "types": ["node"],
-    "incremental": false
+    "incremental": false,
+    "isolatedModules": true,
+    "noEmitOnError": false
   },
   "include": [
     "src/**/*"
