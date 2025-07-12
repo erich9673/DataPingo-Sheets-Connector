@@ -1,3 +1,4 @@
+# Simple Nixpacks configuration
 [build]
 cmd = "npm run build"
 

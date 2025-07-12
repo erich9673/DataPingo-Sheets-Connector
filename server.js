@@ -1,23 +1,14 @@
-// Test if Railway is working
-const http = require('http');
-const port = process.env.PORT || 8080;
+// Simple Railway entry point
+console.log('🚀 Starting DataPingo Sheets Connector...');
+console.log('📍 Working directory:', process.cwd());
+console.log('🔧 Environment:', process.env.NODE_ENV);
+console.log('🌐 Port:', process.env.PORT);
 
-const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'Railway is working!', timestamp: new Date().toISOString() }));
-  } else {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('DataPingo Sheets Connector - Railway Test Server Running!\nHealth: /health');
-  }
-});
-
-server.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Test server running on port ${port}`);
-});
-
-// After confirming Railway works, load the actual backend
-setTimeout(() => {
-  console.log('🔄 Loading actual backend...');
+// Load the actual backend
+try {
+  console.log('� Loading backend from: ./sheets-connector-backend/dist/server.js');
   require('./sheets-connector-backend/dist/server.js');
-}, 2000);
+} catch (error) {
+  console.error('❌ Failed to load backend:', error);
+  process.exit(1);
+}
