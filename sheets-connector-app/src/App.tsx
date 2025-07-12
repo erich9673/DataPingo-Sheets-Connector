@@ -3,6 +3,7 @@ import GoogleSheetsConnector from './components/GoogleSheetsConnector';
 import { SpreadsheetConfig } from './components/SpreadsheetConfig';
 import SlackConnector from './components/SlackConnector';
 import MonitoringDashboard from './components/MonitoringDashboard';
+import { API_ENDPOINTS } from './config/api';
 import './styles/App.css';
 
 interface SpreadsheetConfigData {
@@ -46,8 +47,8 @@ const GlobalActiveJobs: React.FC = () => {
 
   const loadActiveJobs = async () => {
     try {
-      console.log('🔄 Loading active jobs from:', 'http://localhost:3001/api/monitoring/jobs');
-      const response = await fetch('http://localhost:3001/api/monitoring/jobs', {
+      console.log('🔄 Loading active jobs from:', API_ENDPOINTS.monitoringJobs);
+      const response = await fetch(API_ENDPOINTS.monitoringJobs, {
         method: 'GET',
         headers: { 
           'Accept': 'application/json' 
@@ -76,7 +77,7 @@ const GlobalActiveJobs: React.FC = () => {
       console.error('🚨 Error loading jobs:', error);
       
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error('❌ Network error: Cannot connect to backend server at http://localhost:3001');
+        console.error(`❌ Network error: Cannot connect to backend server at ${API_ENDPOINTS.monitoringJobs}`);
       }
     }
   };
@@ -84,9 +85,9 @@ const GlobalActiveJobs: React.FC = () => {
   const stopMonitoring = async (jobId: string) => {
     try {
       console.log('🛑 Stopping monitoring job:', jobId);
-      console.log('🌐 Making request to:', `http://localhost:3001/api/monitoring/stop/${jobId}`);
+      console.log('🌐 Making request to:', API_ENDPOINTS.monitoringStop(jobId));
       
-      const response = await fetch(`http://localhost:3001/api/monitoring/stop/${jobId}`, {
+      const response = await fetch(API_ENDPOINTS.monitoringStop(jobId), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -118,7 +119,7 @@ const GlobalActiveJobs: React.FC = () => {
       console.error('🚨 Stop monitoring error:', error);
       
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        alert(`❌ Network error: Cannot connect to backend server. Is http://localhost:3001 running?`);
+        alert(`❌ Network error: Cannot connect to backend server. Is the API running?`);
       } else {
         alert(`❌ Error stopping monitoring: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
