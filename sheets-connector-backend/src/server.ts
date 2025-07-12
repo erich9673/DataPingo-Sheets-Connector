@@ -23,14 +23,27 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Initialize services
-const googleSheetsService = new GoogleSheetsService();
-const slackService = new SlackService('dummy'); // We'll pass the real URL when using it
-const monitoringService = new MonitoringService(googleSheetsService);
+// Initialize services with error handling
+let googleSheetsService: GoogleSheetsService;
+let slackService: SlackService;
+let monitoringService: MonitoringService;
+
+try {
+    googleSheetsService = new GoogleSheetsService();
+    slackService = new SlackService('dummy'); // We'll pass the real URL when using it
+    monitoringService = new MonitoringService(googleSheetsService);
+    safeLog('✅ Services initialized successfully');
+} catch (error) {
+    safeError('⚠️ Service initialization failed, continuing with basic server:', error);
+    // Create minimal fallback services
+    googleSheetsService = null as any;
+    slackService = null as any;
+    monitoringService = null as any;
+}
 
 // Performance optimization: Clean up cache every 5 minutes
 setInterval(() => {
-    if (monitoringService.cleanupCache) {
+    if (monitoringService && monitoringService.cleanupCache) {
         monitoringService.cleanupCache();
     }
 }, 5 * 60 * 1000);
