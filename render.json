@@ -1,0 +1,44 @@
+{
+  "services": [
+    {
+      "type": "web",
+      "name": "datapingo-sheets-connector",
+      "env": "node",
+      "region": "oregon",
+      "plan": "free",
+      "buildCommand": "echo '=== CUSTOM BUILD STARTING ===' && cd sheets-connector-backend && npm ci --only=production && echo '=== CUSTOM BUILD COMPLETED ==='",
+      "startCommand": "echo '=== CUSTOM START COMMAND ===' && cd sheets-connector-backend && npm start",
+      "runtime": "node",
+      "envVars": [
+        {
+          "key": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "key": "PORT",
+          "value": "10000"
+        },
+        {
+          "key": "GOOGLE_CLIENT_ID",
+          "value": "placeholder"
+        },
+        {
+          "key": "GOOGLE_CLIENT_SECRET",
+          "value": "placeholder"
+        },
+        {
+          "key": "GOOGLE_REDIRECT_URI",
+          "value": "https://datapingo-sheets-connector.onrender.com/auth/callback"
+        },
+        {
+          "key": "SLACK_BOT_TOKEN",
+          "value": "placeholder"
+        },
+        {
+          "key": "SLACK_SIGNING_SECRET",
+          "value": "placeholder"
+        }
+      ]
+    }
+  ]
+}
