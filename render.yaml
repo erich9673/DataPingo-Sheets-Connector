@@ -7,7 +7,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: npm ci --only=production && cd sheets-connector-backend && npm ci --only=production
+    buildCommand: cd sheets-connector-backend && npm ci --only=production
     startCommand: cd sheets-connector-backend && npm start
     runtime: node
     envVars:
