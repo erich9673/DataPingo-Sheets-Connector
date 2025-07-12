@@ -1,96 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
-interface MonitoringJob {
-  id: string;
-  sheetId: string;
-  cellRange: string;
-  frequencyMinutes: number;
-  isActive: boolean;
-  createdAt: string;
-  lastChecked?: string;
+interface SpreadsheetConfigData {
+  spreadsheetId: string;
   spreadsheetName: string;
+  sheetName: string;
+  range: string;
+  conditions: Array<{
+    id: string;
+    cell: string;
+    operator: string;
+    value: string;
+    description: string;
+  }>;
 }
 
 interface MonitoringDashboardProps {
   spreadsheet: any;
   webhookUrl: string;
+  config: SpreadsheetConfigData;
 }
 
 const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   spreadsheet,
-  webhookUrl
+  webhookUrl,
+  config
 }) => {
-  const [cellRange, setCellRange] = useState('A1:B10');
-  const [frequency, setFrequency] = useState(2);
-  const [userMention, setUserMention] = useState('@channel');
-  const [activeJobs, setActiveJobs] = useState<MonitoringJob[]>([]);
-  const [loading, setLoading] = useState(false);
   const [realtimeEnabled, setRealtimeEnabled] = useState(false);
   const [realtimeSetupLoading, setRealtimeSetupLoading] = useState(false);
-
-  // Load active jobs on component mount
-  useEffect(() => {
-    loadActiveJobs();
-  }, []);
-
-  const loadActiveJobs = async () => {
-    try {
-      const response = await fetch('http://localhost:3000/api/debug/monitoring-jobs');
-      const data = await response.json();
-      
-      if (data.success) {
-        setActiveJobs(data.activeJobs || []);
-      }
-    } catch (error) {
-      console.error('Error loading jobs:', error);
-    }
-  };
-
-  const startMonitoring = async () => {
-    if (!cellRange || frequency < 2) {
-      alert('Please fill in all fields correctly');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:3000/api/monitoring/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sheetId: spreadsheet.id,
-          cellRange,
-          webhookUrl,
-          frequencyMinutes: frequency,
-          userMention,
-          conditions: []
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        alert('✅ Monitoring started successfully!');
-        loadActiveJobs(); // Reload the jobs list
-      } else {
-        alert(`❌ Failed to start monitoring: ${data.error}`);
-      }
-    } catch (error) {
-      alert('❌ Error starting monitoring. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const setupRealtimeMonitoring = async () => {
     setRealtimeSetupLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/api/monitoring/setup-push', {
+      // Start monitoring with the user's configuration
+      const response = await fetch('http://localhost:3001/api/monitoring/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sheetId: spreadsheet.id,
-          webhookUrl: 'http://localhost:3000/api/webhook/google-drive'
+          cellRange: `${config.sheetName}!${config.range}`,
+          webhookUrl: webhookUrl,
+          frequencyMinutes: 1, // Check every minute for now
+          userMention: '@channel',
+          conditions: config.conditions
         })
       });
 
@@ -98,12 +49,13 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
       
       if (data.success) {
         setRealtimeEnabled(true);
-        alert('🚀 Real-time monitoring enabled! Changes will be detected instantly (0-5 seconds).');
+        alert('🚀 Real-time monitoring started! You will receive notifications when conditions are met.');
+        // Jobs will be automatically refreshed by the global component
       } else {
-        alert(`❌ Failed to setup real-time monitoring: ${data.error}`);
+        alert(`❌ Failed to start monitoring: ${data.error}`);
       }
     } catch (error) {
-      alert('❌ Error setting up real-time monitoring. Please try again.');
+      alert('❌ Error starting monitoring. Please try again.');
     } finally {
       setRealtimeSetupLoading(false);
     }
@@ -111,176 +63,61 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
 
   const stopMonitoring = async (jobId: string) => {
     try {
-      const response = await fetch('http://localhost:3000/api/monitoring/stop', {
+      console.log('Stopping monitoring job:', jobId);
+      const response = await fetch(`http://localhost:3001/api/monitoring/stop/${jobId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId })
+        headers: { 'Content-Type': 'application/json' }
       });
 
+      console.log('Stop response status:', response.status);
       const data = await response.json();
+      console.log('Stop response data:', data);
       
       if (data.success) {
         alert('✅ Monitoring stopped');
-        loadActiveJobs();
+        // Jobs will be automatically refreshed by the global component
       } else {
         alert(`❌ Failed to stop monitoring: ${data.error}`);
       }
     } catch (error) {
-      alert('❌ Error stopping monitoring');
+      console.error('Stop monitoring error:', error);
+      alert(`❌ Error stopping monitoring: ${error instanceof Error ? error.message : 'Network error'}`);
     }
   };
 
   return (
-    <div className="connector-card">
+    <div className="connector-card fade-in">
       <div className="connector-header">
-        <h3>⚡ Step 3: Set Up Monitoring</h3>
+        <h3>⚡ Step 3: Setup Monitoring</h3>
+        <span className="status-badge connected">🚀 Ready</span>
       </div>
       
       <div className="connector-content">
         <div className="monitoring-setup">
           <h4>📊 Monitor: {spreadsheet.name}</h4>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+            Connect Google Sheets to Slack for real-time notifications
+          </p>
           
           {/* Real-time Monitoring Section */}
-          <div className="realtime-section" style={{ 
-            marginBottom: '20px', 
-            padding: '15px', 
-            border: '2px solid #4CAF50', 
-            borderRadius: '8px',
-            backgroundColor: '#f8fff8'
-          }}>
-            <h5 style={{ color: '#2E7D32', margin: '0 0 10px 0' }}>
-              🚀 Real-time Monitoring (0-5 second latency)
-            </h5>
-            <p style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#555' }}>
-              Enable instant notifications when your Google Sheet changes! No more waiting for polling intervals.
-            </p>
+          <div className="test-result success" style={{ marginBottom: '2rem' }}>
+            <h5>🚀 Real-time Monitoring</h5>
+            <p>Enable instant notifications when your Google Sheet changes!</p>
             
             {!realtimeEnabled ? (
               <button
                 onClick={setupRealtimeMonitoring}
                 disabled={realtimeSetupLoading}
-                className="btn-primary"
-                style={{ backgroundColor: '#4CAF50', border: 'none' }}
+                className="btn-primary btn-large"
               >
-                {realtimeSetupLoading ? '⏳ Setting up...' : '🚀 Enable Real-time Monitoring'}
+                {realtimeSetupLoading ? '⏳ Setting up...' : '🚀 Start Real-Time Monitoring'}
               </button>
             ) : (
-              <div style={{ color: '#2E7D32', fontWeight: 'bold' }}>
-                ✅ Real-time monitoring is active! Changes detected instantly.
+              <div className="connected-info">
+                ✅ Real-time monitoring is active! Changes detected automatically.
               </div>
             )}
           </div>
-
-          {/* Traditional Polling Section */}
-          <div style={{ 
-            padding: '15px', 
-            border: '1px solid #ddd', 
-            borderRadius: '8px',
-            backgroundColor: '#f9f9f9'
-          }}>
-            <h5 style={{ margin: '0 0 15px 0', color: '#666' }}>
-              📅 Backup Polling Monitoring
-            </h5>
-          
-          <div className="form-group">
-            <label htmlFor="cell-range">Cell Range to Monitor:</label>
-            <input
-              id="cell-range"
-              type="text"
-              value={cellRange}
-              onChange={(e) => setCellRange(e.target.value)}
-              placeholder="e.g., A1:B10"
-              className="input-field"
-            />
-            <small>Examples: A1, A1:B10, Sheet1!A1:C5</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="frequency">Check Every (minutes):</label>
-            <input
-              id="frequency"
-              type="number"
-              min="2"
-              value={frequency}
-              onChange={(e) => setFrequency(parseInt(e.target.value))}
-              className="input-field"
-            />
-            <small>Minimum: 2 minutes (network-safe)</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="mention">Slack Mention:</label>
-            <select
-              id="mention"
-              value={userMention}
-              onChange={(e) => setUserMention(e.target.value)}
-              className="input-field"
-            >
-              <option value="@channel">@channel (everyone)</option>
-              <option value="@here">@here (active users)</option>
-              <option value="">No mention</option>
-            </select>
-          </div>
-
-          <button 
-            className="btn-primary btn-large" 
-            onClick={startMonitoring}
-            disabled={loading}
-          >
-            {loading ? '🔄 Starting...' : '🚀 Start Monitoring'}
-          </button>
-          </div> {/* Close traditional polling section */}
-        </div>
-
-        {/* Active Monitoring Jobs */}
-        <div className="active-jobs">
-          <h4>📋 Active Monitoring Jobs ({activeJobs.length})</h4>
-          {activeJobs.length === 0 ? (
-            <p className="no-jobs">No active monitoring jobs. Start one above! 🚀</p>
-          ) : (
-            <div className="jobs-list">
-              {activeJobs.map((job) => (
-                <div key={job.id} className="job-item">
-                  <div className="job-info">
-                    <h5>{job.spreadsheetName}</h5>
-                    <p>📍 Range: {job.cellRange}</p>
-                    <p>⏰ Every {job.frequencyMinutes} minute(s)</p>
-                    <p>🕒 Last checked: {job.lastChecked ? new Date(job.lastChecked).toLocaleString() : 'Never'}</p>
-                  </div>
-                  <div className="job-actions">
-                    <span className={`status ${job.isActive ? 'active' : 'inactive'}`}>
-                      {job.isActive ? '🟢 Active' : '🔴 Inactive'}
-                    </span>
-                    <button 
-                      className="btn-danger btn-small"
-                      onClick={() => stopMonitoring(job.id)}
-                    >
-                      🛑 Stop
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          <button 
-            className="btn-secondary"
-            onClick={loadActiveJobs}
-          >
-            🔄 Refresh Jobs
-          </button>
-        </div>
-
-        <div className="success-message">
-          <h4>🎉 You're All Set!</h4>
-          <p>Your monitoring is now active. You can close this page and the backend will continue monitoring your Google Sheet for changes and send notifications to Slack.</p>
-          <p><strong>📱 What happens next:</strong></p>
-          <ul>
-            <li>✅ Backend monitors your sheet every {frequency} minute(s)</li>
-            <li>✅ Sends Slack notifications when values change</li>
-            <li>✅ Includes direct links to your Google Sheet</li>
-            <li>✅ No need to keep this page open!</li>
-          </ul>
         </div>
       </div>
     </div>

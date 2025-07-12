@@ -23,7 +23,7 @@ export class GoogleSheetsService {
             // Use production webhook URL or localhost for development
             const redirect_uri = process.env.NODE_ENV === 'production' 
                 ? process.env.PRODUCTION_REDIRECT_URI || 'https://your-app.herokuapp.com/auth/callback'
-                : 'http://localhost:3000/auth/callback';
+                : 'http://localhost:3001/auth/callback';
             
             this.auth = new google.auth.OAuth2(
                 clientId,
@@ -52,8 +52,8 @@ export class GoogleSheetsService {
             const authUrl = this.auth.generateAuthUrl({
                 access_type: 'offline',
                 scope: [
-                    'https://www.googleapis.com/auth/spreadsheets.readonly',
-                    'https://www.googleapis.com/auth/drive.readonly',
+                    'https://www.googleapis.com/auth/spreadsheets',
+                    'https://www.googleapis.com/auth/drive.file',
                     'https://www.googleapis.com/auth/drive.metadata.readonly'
                 ],
                 prompt: forceConsent ? 'consent' : 'select_account'
@@ -74,7 +74,22 @@ export class GoogleSheetsService {
             safeLog('Setting auth code, length:', code.length);
             const { tokens } = await this.auth.getToken(code);
             safeLog('Tokens received:', Object.keys(tokens));
+            safeLog('Access token present:', !!tokens.access_token);
+            safeLog('Refresh token present:', !!tokens.refresh_token);
             this.auth.setCredentials(tokens);
+            
+            // Test the authentication immediately
+            try {
+                const testResponse = await this.drive.files.list({
+                    q: "mimeType='application/vnd.google-apps.spreadsheet'",
+                    fields: 'files(id, name)',
+                    pageSize: 1
+                });
+                safeLog('Auth test successful, can access Drive API');
+            } catch (testError) {
+                safeError('Auth test failed:', testError);
+            }
+            
             return { success: true };
         } catch (error) {
             safeError('Error setting auth code:', error);
@@ -136,6 +151,12 @@ export class GoogleSheetsService {
                 throw new Error('No access token available. Please authenticate first.');
             }
             
+            safeLog('Auth credentials status:', {
+                hasAccessToken: !!this.auth.credentials.access_token,
+                hasRefreshToken: !!this.auth.credentials.refresh_token,
+                expiryDate: this.auth.credentials.expiry_date
+            });
+            
             // Test if we have the necessary permissions
             try {
                 safeLog('Testing Drive API access...');
@@ -143,7 +164,7 @@ export class GoogleSheetsService {
                     q: "mimeType='application/vnd.google-apps.spreadsheet'",
                     fields: 'files(id, name, modifiedTime, webViewLink)',
                     orderBy: 'modifiedTime desc',
-                    pageSize: 10 // Start with a small number to test
+                    pageSize: 20 // Increase to get more results
                 });
 
                 const spreadsheets = response.data.files || [];

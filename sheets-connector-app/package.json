@@ -4,7 +4,7 @@
   "description": "A React web application that connects Google Sheets to Slack, sending notifications upon updates.",
   "main": "dist/index.html",
   "scripts": {
-    "start": "npx http-server dist -p 3001 -o -c-1",
+    "start": "npx http-server dist -p 3002 -o -c-1",
     "dev": "npm run build && npm start",
     "build": "npx webpack --mode production",
     "build:dev": "npx webpack --mode development",

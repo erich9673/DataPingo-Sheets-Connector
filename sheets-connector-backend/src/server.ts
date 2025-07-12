@@ -87,7 +87,7 @@ app.get('/auth/callback', async (req, res) => {
                     <body>
                         <h2>❌ Authorization Error</h2>
                         <p>No authorization code received.</p>
-                        <p><a href="http://localhost:3000">Return to app</a></p>
+                        <p><a href="http://localhost:3002">Return to app</a></p>
                     </body>
                 </html>
             `);
@@ -113,7 +113,7 @@ app.get('/auth/callback', async (req, res) => {
                                 document.body.innerHTML = \`
                                     <h2>🎉 Authentication Complete!</h2>
                                     <p>You can now close this window and return to the app.</p>
-                                    <p><a href="http://localhost:3000" target="_parent">Return to DataPingo Sheets Connector</a></p>
+                                    <p><a href="http://localhost:3002" target="_parent">Return to DataPingo Sheets Connector</a></p>
                                 \`;
                                 // Auto-close after 3 seconds
                                 setTimeout(() => {
@@ -123,7 +123,7 @@ app.get('/auth/callback', async (req, res) => {
                                 document.body.innerHTML = \`
                                     <h2>❌ Authentication Failed</h2>
                                     <p>Error: \${data.error}</p>
-                                    <p><a href="http://localhost:3000">Return to app to try again</a></p>
+                                    <p><a href="http://localhost:3002">Return to app to try again</a></p>
                                 \`;
                             }
                         })
@@ -131,7 +131,7 @@ app.get('/auth/callback', async (req, res) => {
                             document.body.innerHTML = \`
                                 <h2>❌ Error</h2>
                                 <p>Failed to submit authorization: \${error.message}</p>
-                                <p><a href="http://localhost:3000">Return to app to try again</a></p>
+                                <p><a href="http://localhost:3002">Return to app to try again</a></p>
                             \`;
                         });
                     </script>
@@ -145,7 +145,7 @@ app.get('/auth/callback', async (req, res) => {
                 <body>
                     <h2>❌ Error</h2>
                     <p>Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
-                    <p><a href="http://localhost:3000">Return to app</a></p>
+                    <p><a href="http://localhost:3002">Return to app</a></p>
                 </body>
             </html>
         `);
@@ -241,14 +241,53 @@ app.post('/api/monitoring/start', async (req, res) => {
         }
 
         const jobId = uuidv4();
+        
+        // Convert frontend conditions to backend format
+        const convertedConditions = (conditions || []).map((condition: any) => {
+            let type: string;
+            let threshold: number | undefined;
+            
+            switch(condition.operator) {
+                case '>':
+                    type = 'greater_than';
+                    threshold = parseFloat(condition.value);
+                    break;
+                case '<':
+                    type = 'less_than';
+                    threshold = parseFloat(condition.value);
+                    break;
+                case '=':
+                case '==':
+                    type = 'equals';
+                    threshold = parseFloat(condition.value);
+                    break;
+                case '!=':
+                    type = 'not_equals';
+                    threshold = parseFloat(condition.value);
+                    break;
+                case 'contains':
+                    type = 'contains';
+                    break;
+                default:
+                    type = 'changed';
+            }
+            
+            return {
+                type,
+                value: condition.value,
+                threshold,
+                enabled: true
+            };
+        });
+        
         const result = await monitoringService.startMonitoring(
             jobId,
             sheetId,
             cellRange,
-            webhookUrl,
             frequencyMinutes,
+            webhookUrl,
             userMention,
-            conditions || []
+            convertedConditions
         );
 
         if (result.success) {
@@ -268,7 +307,22 @@ app.post('/api/monitoring/start', async (req, res) => {
 app.get('/api/monitoring/jobs', (req, res) => {
     try {
         const jobs = monitoringService.getActiveJobs();
-        res.json({ success: true, jobs });
+        // Remove circular references (intervalId) before sending JSON
+        const safeJobs = jobs.map(job => ({
+            id: job.id,
+            sheetId: job.sheetId,
+            cellRange: job.cellRange,
+            frequencyMinutes: job.frequencyMinutes,
+            webhookUrl: job.webhookUrl,
+            userMention: job.userMention,
+            conditions: job.conditions,
+            isActive: job.isActive,
+            createdAt: job.createdAt,
+            lastChecked: job.lastChecked,
+            spreadsheetName: job.spreadsheetName
+            // Intentionally exclude intervalId and currentValues
+        }));
+        res.json({ success: true, jobs: safeJobs });
     } catch (error) {
         safeError('Get jobs error:', error);
         res.status(500).json({ 
@@ -287,7 +341,21 @@ app.get('/api/monitoring/jobs/:jobId', (req, res) => {
             return res.status(404).json({ success: false, error: 'Job not found' });
         }
         
-        res.json({ success: true, job });
+        // Create safe job object without circular references
+        const safeJob = {
+            id: job.id,
+            sheetId: job.sheetId,
+            cellRange: job.cellRange,
+            frequencyMinutes: job.frequencyMinutes,
+            webhookUrl: job.webhookUrl,
+            userMention: job.userMention,
+            conditions: job.conditions,
+            isActive: job.isActive,
+            createdAt: job.createdAt,
+            lastChecked: job.lastChecked,
+            spreadsheetName: job.spreadsheetName
+        };
+        res.json({ success: true, job: safeJob });
     } catch (error) {
         safeError('Get job error:', error);
         res.status(500).json({ 
@@ -308,7 +376,21 @@ app.post('/api/monitoring/jobs/:jobId/refresh', async (req, res) => {
         
         // Manually trigger a check for this job
         const result = await monitoringService.checkForChangesPublic(job);
-        res.json({ success: true, result, job });
+        // Create safe job object without circular references
+        const safeJob = {
+            id: job.id,
+            sheetId: job.sheetId,
+            cellRange: job.cellRange,
+            frequencyMinutes: job.frequencyMinutes,
+            webhookUrl: job.webhookUrl,
+            userMention: job.userMention,
+            conditions: job.conditions,
+            isActive: job.isActive,
+            createdAt: job.createdAt,
+            lastChecked: job.lastChecked,
+            spreadsheetName: job.spreadsheetName
+        };
+        res.json({ success: true, result, job: safeJob });
     } catch (error) {
         safeError('Refresh job error:', error);
         res.status(500).json({ 
@@ -469,14 +551,34 @@ app.post('/api/monitoring/setup-push', async (req, res) => {
         safeLog(`Setting up push notifications for sheet: ${sheetId}`);
         safeLog(`Webhook URL: ${actualWebhookUrl}`);
 
+        // Check if we're in local development (localhost)
+        const isLocalhost = actualWebhookUrl.includes('localhost') || actualWebhookUrl.includes('127.0.0.1');
+        
+        if (isLocalhost) {
+            safeLog('Local development detected, using polling instead of webhooks');
+            // For localhost, we'll use polling instead since Google requires HTTPS for webhooks
+            return res.json({ 
+                success: true, 
+                mode: 'polling',
+                message: 'Real-time monitoring enabled with polling (local development mode)',
+                channelId: `polling-${sheetId}-${Date.now()}`,
+                resourceId: sheetId
+            });
+        }
+
         const result = await googleSheetsService.setupPushNotifications(sheetId, actualWebhookUrl);
         
         if (result.success) {
             // Store the channel info for cleanup later
             await monitoringService.storePushNotificationChannel(sheetId, result.channelId!, result.resourceId!);
+            // Add mode information
+            res.json({ 
+                ...result, 
+                mode: 'webhooks' 
+            });
+        } else {
+            res.json(result);
         }
-
-        res.json(result);
     } catch (error) {
         safeError('Error setting up push notifications:', error);
         res.status(500).json({ 
