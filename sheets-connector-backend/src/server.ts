@@ -40,8 +40,14 @@ app.get('/health', (req, res) => {
     res.json({ 
         status: 'healthy', 
         timestamp: new Date().toISOString(),
-        auth: googleSheetsService.getAuthStatus()
+        port: PORT,
+        env: process.env.NODE_ENV || 'development'
     });
+});
+
+// Simple ping endpoint
+app.get('/ping', (req, res) => {
+    res.send('pong');
 });
 
 // Google Sheets Authentication
