@@ -2,7 +2,7 @@ services:
   - type: web
     name: datapingo-sheets-connector
     env: node
-    plan: starter
+    plan: pro
     runtime: node
     buildCommand: npm install
     startCommand: node test-server.js
