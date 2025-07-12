@@ -1,3 +1,11 @@
+// Debug environment variables first
+console.log('🔍 Environment Variables Debug:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
+console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET');
+console.log('All env vars:', Object.keys(process.env).filter(key => key.startsWith('GOOGLE')));
+
 // Ultra-simple Railway test
 const express = require('express');
 const cors = require('cors');
@@ -16,7 +24,9 @@ app.get('/health', (req, res) => {
     env: {
       NODE_ENV: process.env.NODE_ENV,
       PORT: process.env.PORT,
-      hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID
+      hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      googleEnvVars: Object.keys(process.env).filter(key => key.startsWith('GOOGLE'))
     }
   });
 });
