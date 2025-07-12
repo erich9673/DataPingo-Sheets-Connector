@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "sheets-connector-backend/dist/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "sheets-connector-backend/dist/server.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "GOOGLE_CLIENT_ID": "placeholder",
+    "GOOGLE_CLIENT_SECRET": "placeholder", 
+    "GOOGLE_REDIRECT_URI": "https://datapingo-sheets-connector.vercel.app/auth/callback",
+    "SLACK_BOT_TOKEN": "placeholder",
+    "SLACK_SIGNING_SECRET": "placeholder"
+  }
+}

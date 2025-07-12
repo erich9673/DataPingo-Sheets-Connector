@@ -5,10 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "cd sheets-connector-backend && npm start",
-    "build": "echo '=== ROOT BUILD: Installing backend deps ===' && cd sheets-connector-backend && npm ci --only=production && echo '=== BUILD COMPLETED ==='",
+    "build": "echo '=== ROOT BUILD: Installing backend deps ===' && cd sheets-connector-backend && npm install && echo '=== BUILD COMPLETED ==='",
+    "postinstall": "echo '=== POST INSTALL: Installing backend deps ===' && cd sheets-connector-backend && npm install && echo '=== POST INSTALL COMPLETED ==='",
     "dev": "cd sheets-connector-backend && npm run dev",
-    "frontend": "cd sheets-connector-app && npm start",
-    "postinstall": "echo 'Dependencies available at root'"
+    "frontend": "cd sheets-connector-app && npm start"
   },
   "keywords": [
     "google-sheets",
