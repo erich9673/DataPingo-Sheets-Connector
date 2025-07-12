@@ -2,11 +2,11 @@
 console.log('🔍 Environment Variables Debug:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('PORT:', process.env.PORT);
-console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
-console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET');
+console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET ✅' : 'NOT SET ❌');
+console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET ✅' : 'NOT SET ❌');
 console.log('All env vars:', Object.keys(process.env).filter(key => key.startsWith('GOOGLE')));
 
-// Ultra-simple Railway test
+// Simple Railway test server ONLY - no backend loading
 const express = require('express');
 const cors = require('cors');
 
@@ -26,6 +26,7 @@ app.get('/health', (req, res) => {
       PORT: process.env.PORT,
       hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
       hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      googleClientIdLength: process.env.GOOGLE_CLIENT_ID ? process.env.GOOGLE_CLIENT_ID.length : 0,
       googleEnvVars: Object.keys(process.env).filter(key => key.startsWith('GOOGLE'))
     }
   });
@@ -39,6 +40,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Simple test server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`Google Client ID set: ${!!process.env.GOOGLE_CLIENT_ID}`);
+  console.log(`Google Client ID length: ${process.env.GOOGLE_CLIENT_ID ? process.env.GOOGLE_CLIENT_ID.length : 0}`);
 });
 
 module.exports = app;
