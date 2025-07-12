@@ -1,1 +1,1 @@
-web: cd sheets-connector-backend && npm start
+web: node sheets-connector-backend/dist/server.js

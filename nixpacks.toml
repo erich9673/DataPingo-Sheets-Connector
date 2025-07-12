@@ -1,0 +1,14 @@
+# Nixpacks configuration for Railway
+provider = "node"
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm-9_x"]
+
+[phases.install]
+cmds = ["cd sheets-connector-backend && npm ci"]
+
+[phases.build]
+cmds = ["cd sheets-connector-backend && npm run build"]
+
+[start]
+cmd = "node sheets-connector-backend/dist/server.js"

@@ -5,7 +5,7 @@
     "buildCommand": "cd sheets-connector-backend && npm install && npm run build"
   },
   "deploy": {
-    "startCommand": "cd sheets-connector-backend && npm start",
+    "startCommand": "cd sheets-connector-backend && node dist/server.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
