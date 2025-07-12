@@ -1,1 +1,1 @@
-web: cd sheets-connector-backend && npm start
+web: npm start

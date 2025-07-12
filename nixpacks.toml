@@ -1,5 +1,5 @@
 [build]
-cmd = "cd sheets-connector-backend && npm ci && npm run build"
+cmd = "npm run build"
 
 [start]
-cmd = "cd sheets-connector-backend && npm start"
+cmd = "npm start"
