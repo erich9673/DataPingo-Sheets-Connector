@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "cd sheets-connector-backend && npm ci && npm run build",
+    "build": "npm install && cd sheets-connector-backend && npm ci && npm run build",
     "dev": "cd sheets-connector-backend && npm run dev",
     "frontend": "cd sheets-connector-app && npm start",
     "postinstall": "echo 'Dependencies available at root'"
