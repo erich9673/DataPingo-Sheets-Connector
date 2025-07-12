@@ -2,7 +2,10 @@ services:
   - type: web
     name: datapingo-sheets-connector
     env: node
-    plan: free
+    plan: starter
+    runtime: node
+    buildCommand: cd sheets-connector-backend && npm install
+    startCommand: cd sheets-connector-backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
