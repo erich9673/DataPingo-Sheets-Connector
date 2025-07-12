@@ -11,7 +11,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build output
-dist/
+# dist/ - Allow committing compiled JavaScript for production deployment
 build/
 
 # Database
