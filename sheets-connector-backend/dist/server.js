@@ -63,8 +63,31 @@ app.get('/ping', (req, res) => {
 app.get('/api/auth/google/url', async (req, res) => {
     try {
         const forceConsent = req.query.force === 'true';
-        const result = await googleSheetsService.authenticate(forceConsent);
-        res.json({ success: true, url: result.authUrl });
+        
+        // Always create fresh OAuth client to avoid caching issues
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+        const redirect_uri = process.env.NODE_ENV === 'production'
+            ? process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback'
+            : 'http://localhost:3001/auth/callback';
+        
+        if (!clientId || !clientSecret) {
+            throw new Error('Google credentials not found in environment variables');
+        }
+        
+        const freshAuth = new googleapis_1.google.auth.OAuth2(clientId, clientSecret, redirect_uri);
+        
+        const authUrl = freshAuth.generateAuthUrl({
+            access_type: 'offline',
+            scope: [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive.file',
+                'https://www.googleapis.com/auth/drive.metadata.readonly'
+            ],
+            prompt: forceConsent ? 'consent' : 'select_account'
+        });
+        
+        res.json({ success: true, url: authUrl });
     }
     catch (error) {
         (0, logger_1.safeError)('Auth URL error:', error);
