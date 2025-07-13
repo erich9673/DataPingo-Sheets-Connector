@@ -41,7 +41,7 @@ export class GoogleSheetsService {
         }
     }
 
-    async authenticate(forceConsent: boolean = false) {
+    async authenticate(forceConsent: boolean = false, state?: string) {
         try {
             safeLog('Starting authentication process...');
             
@@ -49,7 +49,7 @@ export class GoogleSheetsService {
                 throw new Error('OAuth2 client not initialized');
             }
             
-            const authUrl = this.auth.generateAuthUrl({
+            const authUrlOptions: any = {
                 access_type: 'offline',
                 scope: [
                     'https://www.googleapis.com/auth/spreadsheets',
@@ -57,7 +57,14 @@ export class GoogleSheetsService {
                     'https://www.googleapis.com/auth/drive.metadata.readonly'
                 ],
                 prompt: forceConsent ? 'consent' : 'select_account'
-            });
+            };
+            
+            // Add state parameter if provided (for Slack installations)
+            if (state) {
+                authUrlOptions.state = state;
+            }
+            
+            const authUrl = this.auth.generateAuthUrl(authUrlOptions);
             
             safeLog('Generated auth URL:', authUrl);
             safeLog('Force consent:', forceConsent);

@@ -74,6 +74,17 @@ app.get('/api/auth/google/url', async (req, res) => {
         });
     }
 });
+// Slack installation OAuth URL (with state parameter)
+app.get('/slack/install', async (req, res) => {
+    try {
+        const result = await googleSheetsService.authenticate(false, 'slack_install');
+        res.redirect(302, result.authUrl);
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Slack install error:', error);
+        res.redirect(302, 'https://slack.com/app_redirect?app=A095BR1R14J&error=setup_error');
+    }
+});
 app.post('/api/auth/google/callback', async (req, res) => {
     try {
         const { code } = req.body;
@@ -94,14 +105,34 @@ app.post('/api/auth/google/callback', async (req, res) => {
 // Handle OAuth callback redirect (GET)
 app.get('/auth/callback', async (req, res) => {
     try {
-        const { code } = req.query;
+        const { code, state } = req.query;
+        // Check if this is a Slack OAuth flow (for App Store distribution)
+        if (state === 'slack_install') {
+            // For Slack App Store installations, redirect back to Slack
+            if (code) {
+                // Process the authorization code
+                try {
+                    const result = await googleSheetsService.setAuthCode(code);
+                    if (result.success) {
+                        // Redirect back to Slack with success
+                        return res.redirect(302, 'https://slack.com/app_redirect?app=A095BR1R14J&team=' + (req.query.team || ''));
+                    }
+                }
+                catch (error) {
+                    (0, logger_1.safeError)('OAuth processing error:', error);
+                }
+            }
+            // Redirect back to Slack with error
+            return res.redirect(302, 'https://slack.com/app_redirect?app=A095BR1R14J&error=oauth_error');
+        }
+        // Regular OAuth flow (for direct users)
         if (!code) {
             return res.send(`
                 <html>
                     <body>
                         <h2>❌ Authorization Error</h2>
                         <p>No authorization code received.</p>
-                        <p><a href="http://localhost:3002">Return to app</a></p>
+                        <p><a href="/">Return to app</a></p>
                     </body>
                 </html>
             `);
@@ -126,17 +157,17 @@ app.get('/auth/callback', async (req, res) => {
                                 document.body.innerHTML = \`
                                     <h2>🎉 Authentication Complete!</h2>
                                     <p>You can now close this window and return to the app.</p>
-                                    <p><a href="http://localhost:3002" target="_parent">Return to DataPingo Sheets Connector</a></p>
+                                    <p><a href="/" target="_parent">Return to DataPingo Sheets Connector</a></p>
                                 \`;
-                                // Auto-close after 3 seconds
+                                // Auto-redirect after 2 seconds
                                 setTimeout(() => {
-                                    window.close();
-                                }, 3000);
+                                    window.location.href = '/';
+                                }, 2000);
                             } else {
                                 document.body.innerHTML = \`
                                     <h2>❌ Authentication Failed</h2>
                                     <p>Error: \${data.error}</p>
-                                    <p><a href="http://localhost:3002">Return to app to try again</a></p>
+                                    <p><a href="/">Return to app to try again</a></p>
                                 \`;
                             }
                         })
