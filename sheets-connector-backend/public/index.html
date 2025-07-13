@@ -367,6 +367,40 @@
         <!-- Step 4: Slack Configuration -->
         <div class="section">
             <h2>4. 📢 Slack Configuration</h2>
+            
+            <!-- Instructions for getting Slack webhook -->
+            <div class="info-box" style="margin: 15px 0; padding: 20px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;">
+                <h4 style="margin: 0 0 15px 0; color: #495057; display: flex; align-items: center; gap: 8px;">
+                    📋 How to Get Your Slack Webhook URL
+                </h4>
+                <div style="font-size: 14px; line-height: 1.6; color: #6c757d;">
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 1:</strong> Go to <a href="https://api.slack.com/apps" target="_blank" style="color: #007bff;">https://api.slack.com/apps</a>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 2:</strong> Click "Create New App" → "From scratch"
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 3:</strong> Name your app (e.g., "Sheets Monitor") and select your workspace
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 4:</strong> In the sidebar, click "Incoming Webhooks"
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 5:</strong> Toggle "Activate Incoming Webhooks" to <strong>On</strong>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 6:</strong> Click "Add New Webhook to Workspace"
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <strong>Step 7:</strong> Choose the channel where you want notifications
+                    </div>
+                    <div style="margin-bottom: 0;">
+                        <strong>Step 8:</strong> Copy the webhook URL (starts with <code>https://hooks.slack.com/services/...</code>)
+                    </div>
+                </div>
+            </div>
+            
             <div class="form-group">
                 <label for="webhook-url">Slack Webhook URL:</label>
                 <input type="text" id="webhook-url" placeholder="https://hooks.slack.com/services/...">
