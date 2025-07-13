@@ -20,15 +20,34 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Start the working test server directly
-console.log('🚂 Starting reliable test server on Railway...');
-console.log('🔄 Loading test-server.js...');
+// Load the main DataPingo application
+console.log('🚂 Starting DataPingo Sheets Connector application...');
+console.log('🔄 Loading main backend from sheets-connector-backend...');
 
 try {
-  require('./test-server.js');
-  console.log('✅ Test server module loaded successfully');
+  const path = require('path');
+  const fs = require('fs');
+  const backendPath = path.join(__dirname, 'sheets-connector-backend', 'dist', 'server.js');
+  
+  console.log('📂 Backend path:', backendPath);
+  
+  if (fs.existsSync(backendPath)) {
+    console.log('✅ Main backend found, loading...');
+    require(backendPath);
+    console.log('✅ DataPingo Sheets Connector loaded successfully');
+  } else {
+    console.log('⚠️ Main backend not found, falling back to test server');
+    require('./test-server.js');
+    console.log('✅ Test server fallback loaded');
+  }
 } catch (error) {
-  console.error('❌ Failed to load test server:', error);
+  console.error('❌ Failed to load main backend, falling back to test server:', error);
   console.error('Stack:', error.stack);
-  process.exit(1);
+  try {
+    require('./test-server.js');
+    console.log('✅ Test server fallback loaded successfully');
+  } catch (fallbackError) {
+    console.error('💥 Complete failure - both main and test servers failed:', fallbackError);
+    process.exit(1);
+  }
 }

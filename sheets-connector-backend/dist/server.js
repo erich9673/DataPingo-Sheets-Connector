@@ -566,9 +566,10 @@ app.use((err, req, res, next) => {
     });
 });
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
-    (0, logger_1.safeLog)(`📊 API Base URL: http://localhost:${PORT}/api`);
-    (0, logger_1.safeLog)(`🔍 Health Check: http://localhost:${PORT}/health`);
+    (0, logger_1.safeLog)(`📊 API Base URL: http://0.0.0.0:${PORT}/api`);
+    (0, logger_1.safeLog)(`🔍 Health Check: http://0.0.0.0:${PORT}/health`);
+    (0, logger_1.safeLog)(`🚂 Railway deployment ready!`);
 });
 exports.default = app;
