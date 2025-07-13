@@ -667,6 +667,9 @@ app.get('/support', (req, res) => {
 app.get('/sub-processors', (req, res) => {
     res.sendFile(path_1.default.join(__dirname, '../public/sub-processors.html'));
 });
+app.get('/beta', (req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '../public/beta.html'));
+});
 // Start server
 app.listen(PORT, () => {
     (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
