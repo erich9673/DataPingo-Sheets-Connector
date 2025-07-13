@@ -568,6 +568,24 @@ app.post('/api/monitoring/setup-push', async (req, res) => {
         });
     }
 });
+// Test endpoint to verify OAuth credentials
+app.get('/api/test/oauth', async (req, res) => {
+    try {
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+        const redirect_uri = process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback';
+        
+        res.json({
+            success: true,
+            clientId: clientId ? clientId.substring(0, 20) + '...' : 'NOT_SET',
+            clientSecret: clientSecret ? clientSecret.substring(0, 10) + '...' : 'NOT_SET',
+            redirectUri: redirect_uri,
+            nodeEnv: process.env.NODE_ENV
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Error handling middleware
 app.use((err, req, res, next) => {
     (0, logger_1.safeError)('Unhandled error:', err);
