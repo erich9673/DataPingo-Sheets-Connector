@@ -616,6 +616,19 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     });
 });
 
+// Legal pages routes (required for Slack App Store)
+app.get('/privacy', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/privacy.html'));
+});
+
+app.get('/terms', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/terms.html'));
+});
+
+app.get('/support', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/support.html'));
+});
+
 // Start server
 app.listen(PORT, () => {
     safeLog(`🚀 Sheets Connector Backend Server running on port ${PORT}`);

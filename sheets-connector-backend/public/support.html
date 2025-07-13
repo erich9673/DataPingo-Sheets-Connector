@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support - Sheets Connector for Slack</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2 { color: #2c3e50; }
+        .contact-box { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .faq-item { margin-bottom: 20px; padding: 15px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .faq-question { font-weight: bold; margin-bottom: 8px; }
+        .status-badge { 
+            display: inline-block; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            font-weight: bold;
+        }
+        .status-operational { background: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <h1>🛟 Support & Help Center</h1>
+    
+    <div class="contact-box">
+        <h2>📧 Contact Support</h2>
+        <p>Need help with Sheets Connector for Slack? We're here to help!</p>
+        <ul>
+            <li><strong>Email:</strong> <a href="mailto:support@datapingo.com">support@datapingo.com</a></li>
+            <li><strong>Response Time:</strong> Within 24 hours (usually much faster)</li>
+            <li><strong>Support Hours:</strong> Monday-Friday, 9 AM - 6 PM EST</li>
+        </ul>
+    </div>
+
+    <h2>📊 Service Status</h2>
+    <p><span class="status-badge status-operational">🟢 Operational</span> All systems are currently running normally.</p>
+    <p>For real-time status updates, visit our app at: <a href="https://web-production-a261.up.railway.app">https://web-production-a261.up.railway.app</a></p>
+
+    <h2>❓ Frequently Asked Questions</h2>
+
+    <div class="faq-item">
+        <div class="faq-question">Q: How do I get my Slack webhook URL?</div>
+        <div>A: Follow the step-by-step instructions in the app's Slack Configuration section. You'll need to create a Slack app and enable incoming webhooks.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-question">Q: What's the minimum monitoring frequency?</div>
+        <div>A: You can monitor as frequently as every 30 seconds, but we recommend 5 minutes for most use cases to avoid hitting API limits.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-question">Q: Why am I not receiving notifications?</div>
+        <div>A: Check that your Slack webhook URL is correct, your Google Sheets permissions are granted, and your monitoring conditions are properly configured.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-question">Q: Can I monitor multiple spreadsheets?</div>
+        <div>A: Yes! You can set up multiple monitoring jobs for different spreadsheets and ranges.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-question">Q: Is my data secure?</div>
+        <div>A: Yes. We use OAuth 2.0 for secure access, encrypt all communications, and don't permanently store your spreadsheet data. See our Privacy Policy for details.</div>
+    </div>
+
+    <div class="faq-item">
+        <div class="faq-question">Q: How do I stop monitoring?</div>
+        <div>A: Use the "Stop All Jobs" button in the Active Monitoring Jobs section, or revoke access via your Google Account settings.</div>
+    </div>
+
+    <h2>🔧 Troubleshooting</h2>
+
+    <h3>Authentication Issues</h3>
+    <ul>
+        <li>Ensure you're using the correct Google account</li>
+        <li>Check that Google Sheets API access is enabled</li>
+        <li>Try signing out and signing in again</li>
+    </ul>
+
+    <h3>Notification Issues</h3>
+    <ul>
+        <li>Verify your Slack webhook URL is correct</li>
+        <li>Test the webhook URL using the "Test Slack Connection" button</li>
+        <li>Check your Slack channel permissions</li>
+    </ul>
+
+    <h3>Monitoring Issues</h3>
+    <ul>
+        <li>Ensure the cell range format is correct (e.g., A1:C10)</li>
+        <li>Check that the spreadsheet is accessible to your Google account</li>
+        <li>Verify monitoring conditions are properly set</li>
+    </ul>
+
+    <h2>📚 Resources</h2>
+    <ul>
+        <li><a href="/">App Dashboard</a> - Access the main application</li>
+        <li><a href="/privacy.html">Privacy Policy</a> - How we protect your data</li>
+        <li><a href="/terms.html">Terms of Service</a> - Usage terms and conditions</li>
+        <li><a href="https://api.slack.com/messaging/webhooks">Slack Webhooks Documentation</a> - Official Slack webhook guide</li>
+        <li><a href="https://developers.google.com/sheets/api">Google Sheets API</a> - Google Sheets API documentation</li>
+    </ul>
+
+    <div class="contact-box">
+        <h2>💡 Feature Requests</h2>
+        <p>Have ideas for new features? We'd love to hear from you! Send your suggestions to <a href="mailto:support@datapingo.com">support@datapingo.com</a></p>
+    </div>
+</body>
+</html>
