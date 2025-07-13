@@ -74,16 +74,74 @@ app.get('/api/auth/google/url', async (req, res) => {
         });
     }
 });
-// Slack installation OAuth URL (with state parameter)
-app.get('/slack/install', async (req, res) => {
+// Slack installation endpoint - redirects to complete installation in Slack
+app.get('/slack/install', (req, res) => {
     try {
-        const result = await googleSheetsService.authenticate(false, 'slack_install');
-        res.redirect(302, result.authUrl);
+        // Slack App Store requires this endpoint to redirect to slack.com with 302
+        // After installation, users will be directed to our app via the landing page
+        const appId = 'A095BR1R14J';
+        const team = req.query.team || '';
+        const slackRedirectUrl = `https://slack.com/app_redirect?app=${appId}${team ? '&team=' + team : ''}`;
+        (0, logger_1.safeLog)(`Redirecting Slack installation to: ${slackRedirectUrl}`);
+        res.redirect(302, slackRedirectUrl);
     }
     catch (error) {
         (0, logger_1.safeError)('Slack install error:', error);
-        res.redirect(302, 'https://slack.com/app_redirect?app=A095BR1R14J&error=setup_error');
+        res.redirect(302, `https://slack.com/app_redirect?app=A095BR1R14J&error=install_failed`);
     }
+});
+// Landing page for post-Slack installation
+app.get('/installed', (req, res) => {
+    res.send(`
+        <html>
+            <head>
+                <title>DataPingo Sheets Connector - Installation Complete</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { 
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                        max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; 
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        min-height: 100vh; color: white;
+                    }
+                    .container { 
+                        background: white; color: #333; padding: 40px; border-radius: 12px; 
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+                    }
+                    .success { color: #28a745; font-size: 48px; margin-bottom: 20px; }
+                    .next-steps { 
+                        background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; 
+                        text-align: left; 
+                    }
+                    .cta-button { 
+                        display: inline-block; background: #4285f4; color: white; 
+                        padding: 15px 30px; text-decoration: none; border-radius: 6px; 
+                        font-weight: bold; margin: 10px; 
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="success">🎉</div>
+                    <h1>DataPingo Sheets Connector Installed!</h1>
+                    <p>Great! The app has been added to your Slack workspace.</p>
+                    
+                    <div class="next-steps">
+                        <h3>📋 Next Steps:</h3>
+                        <ol>
+                            <li><strong>Set up Google Sheets access</strong> - Connect your Google account</li>
+                            <li><strong>Configure Slack notifications</strong> - Set up your webhook</li>
+                            <li><strong>Start monitoring</strong> - Choose what to track</li>
+                        </ol>
+                    </div>
+                    
+                    <a href="/" class="cta-button">🚀 Start Setup</a>
+                    <a href="/support" class="cta-button">📚 Get Help</a>
+                </div>
+            </body>
+        </html>
+    `);
 });
 app.post('/api/auth/google/callback', async (req, res) => {
     try {
