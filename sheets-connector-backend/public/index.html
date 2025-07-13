@@ -396,6 +396,23 @@
                 <input type="number" id="frequency" min="0.5" max="60" step="0.5" value="5" onchange="validateFrequency()">
                 <small>Minimum: 30 seconds (0.5), Recommended: 5 minutes for most use cases</small>
             </div>
+            
+            <!-- Frequency Use Cases Box -->
+            <div class="info-box" style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;">
+                <h4 style="margin: 0 0 10px 0; color: #007bff;">📊 Frequency Recommendations</h4>
+                <div style="font-size: 14px; line-height: 1.5;">
+                    <div style="margin-bottom: 8px;">
+                        <strong>🚨 Critical alerts:</strong> 30 seconds - 1 minute <em>(immediate response needed)</em>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <strong>📈 General monitoring:</strong> 5 minutes <em>(default - good balance)</em>
+                    </div>
+                    <div style="margin-bottom: 0;">
+                        <strong>📋 Low-priority tracking:</strong> 15-30 minutes <em>(conserves API quota)</em>
+                    </div>
+                </div>
+            </div>
+            
             <button onclick="startMonitoring()">🚀 Start Always-On Monitoring</button>
             <div id="monitoring-info"></div>
         </div>
