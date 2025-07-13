@@ -15,7 +15,7 @@ class GoogleSheetsService {
             (0, logger_1.safeLog)('Google credentials loaded from environment');
             // Use production webhook URL or localhost for development
             const redirect_uri = process.env.NODE_ENV === 'production'
-                ? process.env.PRODUCTION_REDIRECT_URI || 'https://your-app.herokuapp.com/auth/callback'
+                ? process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback'
                 : 'http://localhost:3001/auth/callback';
             this.auth = new googleapis_1.google.auth.OAuth2(clientId, clientSecret, redirect_uri);
             this.sheets = googleapis_1.google.sheets({ version: 'v4', auth: this.auth });
