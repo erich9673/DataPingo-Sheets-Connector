@@ -9,7 +9,6 @@ const body_parser_1 = __importDefault(require("body-parser"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const uuid_1 = require("uuid");
-const googleapis_1 = require("googleapis");
 const GoogleSheetsService_1 = require("./services/GoogleSheetsService");
 const SlackService_1 = require("./services/SlackService");
 const MonitoringService_1 = require("./services/MonitoringService");
@@ -64,31 +63,8 @@ app.get('/ping', (req, res) => {
 app.get('/api/auth/google/url', async (req, res) => {
     try {
         const forceConsent = req.query.force === 'true';
-        
-        // Always create fresh OAuth client to avoid caching issues
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-        const redirect_uri = process.env.NODE_ENV === 'production'
-            ? process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback'
-            : 'http://localhost:3001/auth/callback';
-        
-        if (!clientId || !clientSecret) {
-            throw new Error('Google credentials not found in environment variables');
-        }
-        
-        const freshAuth = new googleapis_1.google.auth.OAuth2(clientId, clientSecret, redirect_uri);
-        
-        const authUrl = freshAuth.generateAuthUrl({
-            access_type: 'offline',
-            scope: [
-                'https://www.googleapis.com/auth/spreadsheets',
-                'https://www.googleapis.com/auth/drive.file',
-                'https://www.googleapis.com/auth/drive.metadata.readonly'
-            ],
-            prompt: forceConsent ? 'consent' : 'select_account'
-        });
-        
-        res.json({ success: true, url: authUrl });
+        const result = await googleSheetsService.authenticate(forceConsent);
+        res.json({ success: true, url: result.authUrl });
     }
     catch (error) {
         (0, logger_1.safeError)('Auth URL error:', error);
@@ -119,17 +95,13 @@ app.post('/api/auth/google/callback', async (req, res) => {
 app.get('/auth/callback', async (req, res) => {
     try {
         const { code } = req.query;
-        const baseUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://web-production-a261.up.railway.app'
-            : 'http://localhost:3002';
-            
         if (!code) {
             return res.send(`
                 <html>
                     <body>
                         <h2>❌ Authorization Error</h2>
                         <p>No authorization code received.</p>
-                        <p><a href="` + baseUrl + `">Return to app</a></p>
+                        <p><a href="http://localhost:3002">Return to app</a></p>
                     </body>
                 </html>
             `);
@@ -146,7 +118,7 @@ app.get('/auth/callback', async (req, res) => {
                         fetch('/api/auth/google/callback', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ code: '` + code + `' })
+                            body: JSON.stringify({ code: '${code}' })
                         })
                         .then(response => response.json())
                         .then(data => {
@@ -154,17 +126,17 @@ app.get('/auth/callback', async (req, res) => {
                                 document.body.innerHTML = \`
                                     <h2>🎉 Authentication Complete!</h2>
                                     <p>You can now close this window and return to the app.</p>
-                                    <p><a href="` + baseUrl + `" target="_parent">Return to DataPingo Sheets Connector</a></p>
+                                    <p><a href="http://localhost:3002" target="_parent">Return to DataPingo Sheets Connector</a></p>
                                 \`;
-                                // Auto-redirect after 3 seconds
+                                // Auto-close after 3 seconds
                                 setTimeout(() => {
-                                    window.location.href = '` + baseUrl + `';
+                                    window.close();
                                 }, 3000);
                             } else {
                                 document.body.innerHTML = \`
                                     <h2>❌ Authentication Failed</h2>
                                     <p>Error: \${data.error}</p>
-                                    <p><a href="` + baseUrl + `">Return to app to try again</a></p>
+                                    <p><a href="http://localhost:3002">Return to app to try again</a></p>
                                 \`;
                             }
                         })
@@ -172,11 +144,7 @@ app.get('/auth/callback', async (req, res) => {
                             document.body.innerHTML = \`
                                 <h2>❌ Error</h2>
                                 <p>Failed to submit authorization: \${error.message}</p>
-                                <p><a href="` + baseUrl + `">Return to app to try again</a></p>
-                            \`;
-                        });
-                    </script>
-                                <p><a href="${baseUrl}">Return to app to try again</a></p>
+                                <p><a href="http://localhost:3002">Return to app to try again</a></p>
                             \`;
                         });
                     </script>
@@ -186,15 +154,12 @@ app.get('/auth/callback', async (req, res) => {
     }
     catch (error) {
         (0, logger_1.safeError)('OAuth callback error:', error);
-        const baseUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://web-production-a261.up.railway.app'
-            : 'http://localhost:3002';
         res.send(`
             <html>
                 <body>
                     <h2>❌ Error</h2>
-                    <p>Authentication error: ` + (error instanceof Error ? error.message : 'Unknown error') + `</p>
-                    <p><a href="` + baseUrl + `">Return to app</a></p>
+                    <p>Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
+                    <p><a href="http://localhost:3002">Return to app</a></p>
                 </body>
             </html>
         `);
@@ -592,24 +557,6 @@ app.post('/api/monitoring/setup-push', async (req, res) => {
         });
     }
 });
-// Test endpoint to verify OAuth credentials
-app.get('/api/test/oauth', async (req, res) => {
-    try {
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-        const redirect_uri = process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback';
-        
-        res.json({
-            success: true,
-            clientId: clientId ? clientId.substring(0, 20) + '...' : 'NOT_SET',
-            clientSecret: clientSecret ? clientSecret.substring(0, 10) + '...' : 'NOT_SET',
-            redirectUri: redirect_uri,
-            nodeEnv: process.env.NODE_ENV
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
 // Error handling middleware
 app.use((err, req, res, next) => {
     (0, logger_1.safeError)('Unhandled error:', err);
@@ -618,15 +565,20 @@ app.use((err, req, res, next) => {
         error: 'Internal server error'
     });
 });
+// Legal pages routes (required for Slack App Store)
+app.get('/privacy', (req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '../public/privacy.html'));
+});
+app.get('/terms', (req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '../public/terms.html'));
+});
+app.get('/support', (req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '../public/support.html'));
+});
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-    const baseUrl = process.env.NODE_ENV === 'production' 
-        ? `https://web-production-a261.up.railway.app` 
-        : `http://localhost:${PORT}`;
-    
+app.listen(PORT, () => {
     (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
-    (0, logger_1.safeLog)(`📊 API Base URL: ${baseUrl}/api`);
-    (0, logger_1.safeLog)(`🔍 Health Check: ${baseUrl}/health`);
-    (0, logger_1.safeLog)(`🌐 Frontend: ${baseUrl}`);
+    (0, logger_1.safeLog)(`📊 API Base URL: http://localhost:${PORT}/api`);
+    (0, logger_1.safeLog)(`🔍 Health Check: http://localhost:${PORT}/health`);
 });
 exports.default = app;

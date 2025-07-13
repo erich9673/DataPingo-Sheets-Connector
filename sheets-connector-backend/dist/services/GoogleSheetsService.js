@@ -17,7 +17,6 @@ class GoogleSheetsService {
             const redirect_uri = process.env.NODE_ENV === 'production'
                 ? process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback'
                 : 'http://localhost:3001/auth/callback';
-            (0, logger_1.safeLog)('OAuth2 client initialized for environment:', process.env.NODE_ENV);
             this.auth = new googleapis_1.google.auth.OAuth2(clientId, clientSecret, redirect_uri);
             this.sheets = googleapis_1.google.sheets({ version: 'v4', auth: this.auth });
             this.drive = googleapis_1.google.drive({ version: 'v3', auth: this.auth });
@@ -31,21 +30,10 @@ class GoogleSheetsService {
     async authenticate(forceConsent = false) {
         try {
             (0, logger_1.safeLog)('Starting authentication process...');
-            
-            // Create fresh OAuth2 client with current environment variables
-            const clientId = process.env.GOOGLE_CLIENT_ID;
-            const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-            const redirect_uri = process.env.NODE_ENV === 'production'
-                ? process.env.GOOGLE_REDIRECT_URI || 'https://web-production-a261.up.railway.app/auth/callback'
-                : 'http://localhost:3001/auth/callback';
-            
-            if (!clientId || !clientSecret) {
-                throw new Error('Google credentials not found in environment variables');
+            if (!this.auth) {
+                throw new Error('OAuth2 client not initialized');
             }
-            
-            const freshAuth = new googleapis_1.google.auth.OAuth2(clientId, clientSecret, redirect_uri);
-            
-            const authUrl = freshAuth.generateAuthUrl({
+            const authUrl = this.auth.generateAuthUrl({
                 access_type: 'offline',
                 scope: [
                     'https://www.googleapis.com/auth/spreadsheets',
