@@ -241,9 +241,9 @@ const server = app.listen(PORT, () => {
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
 });
 
-// Server timeout configuration
-server.timeout = 30000; // 30 seconds
-server.keepAliveTimeout = 5000; // 5 seconds
-server.headersTimeout = 6000; // 6 seconds
+// Server timeout configuration - REDUCED for faster responses
+server.timeout = 10000; // 10 seconds (reduced from 30)
+server.keepAliveTimeout = 2000; // 2 seconds (reduced from 5)
+server.headersTimeout = 3000; // 3 seconds (reduced from 6)
 
 module.exports = app;

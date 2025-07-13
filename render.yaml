@@ -4,8 +4,9 @@ services:
     env: node
     plan: starter
     runtime: node
-    buildCommand: npm install
-    startCommand: node test-server.js
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production

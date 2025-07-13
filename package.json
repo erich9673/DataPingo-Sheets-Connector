@@ -5,8 +5,8 @@
   "main": "server.js",
   "scripts": {
     "prestart": "echo '=== PRE-START: Installing backend deps ===' && cd sheets-connector-backend && npm install",
-    "start": "echo '=== STARTING BACKEND ===' && cd sheets-connector-backend && npm start",
-    "build": "echo '=== ROOT BUILD: Installing backend deps ===' && cd sheets-connector-backend && npm install && echo '=== BUILD COMPLETED ==='",
+    "start": "node server.js",
+    "build": "echo '=== ROOT BUILD: Installing backend deps ===' && cd sheets-connector-backend && npm install && npm run build-ts && echo '=== BUILD COMPLETED ==='",
     "postinstall": "echo '=== POST INSTALL: Installing backend deps ===' && cd sheets-connector-backend && npm install && echo '=== POST INSTALL COMPLETED ==='",
     "dev": "cd sheets-connector-backend && npm run dev",
     "frontend": "cd sheets-connector-app && npm start"
