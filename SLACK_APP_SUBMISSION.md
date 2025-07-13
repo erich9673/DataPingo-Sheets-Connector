@@ -123,9 +123,9 @@ Productivity
 ## 🌐 Deployment URLs
 
 ### Production
-- **Frontend**: https://datapingo-sheets-connector.vercel.app
-- **Backend**: https://datapingo-backend.railway.app
-- **OAuth Redirect**: https://datapingo-backend.railway.app/auth/callback
+- **Frontend**: https://datapingo-sheets-connector.up.railway.app
+- **Backend**: https://datapingo-sheets-connector.up.railway.app
+- **OAuth Redirect**: https://datapingo-sheets-connector.up.railway.app/auth/callback
 
 ### Support
 - **Website**: https://datapingo.com

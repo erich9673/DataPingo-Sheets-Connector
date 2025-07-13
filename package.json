@@ -5,8 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "echo '=== ROOT BUILD: Installing backend deps ===' && cd sheets-connector-backend && npm install && echo '=== BUILD COMPLETED ==='",
-    "postinstall": "echo '=== POST INSTALL: Installing backend deps ===' && cd sheets-connector-backend && npm install && echo '=== POST INSTALL COMPLETED ==='",
+    "build": "echo 'Railway build: Installing backend dependencies...' && cd sheets-connector-backend && npm ci --only=production",
+    "railway:start": "node server.js",
+    "railway:build": "cd sheets-connector-backend && npm ci --only=production",
     "dev": "cd sheets-connector-backend && npm run dev",
     "frontend": "cd sheets-connector-app && npm start"
   },

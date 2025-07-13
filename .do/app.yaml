@@ -1,0 +1,19 @@
+name: datapingo-sheets-connector
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: erich9673/DataPingo-Sheets-Connector
+    branch: main
+  run_command: npm start
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  http_port: 8080
+  health_check:
+    http_path: /health
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: PORT
+    value: "8080"

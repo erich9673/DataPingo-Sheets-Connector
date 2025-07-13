@@ -1,0 +1,27 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "always"
+replicas = 1
+
+[services.datapingo-sheets-connector]
+source.repo = "erich9673/DataPingo-Sheets-Connector"
+source.branch = "main"
+
+[services.datapingo-sheets-connector.variables]
+NODE_ENV = "production"
+PORT = "3000"
+GOOGLE_CLIENT_ID = "placeholder"
+GOOGLE_CLIENT_SECRET = "placeholder"
+GOOGLE_REDIRECT_URI = "https://datapingo-sheets-connector.up.railway.app/auth/callback"
+SLACK_BOT_TOKEN = "placeholder"
+SLACK_SIGNING_SECRET = "placeholder"
+GOOGLE_CLIENT_ID = "placeholder"
+GOOGLE_CLIENT_SECRET = "placeholder"
+GOOGLE_REDIRECT_URI = "https://datapingo-sheets-connector.up.railway.app/auth/callback"
+SLACK_BOT_TOKEN = "placeholder"
+SLACK_SIGNING_SECRET = "placeholder"
