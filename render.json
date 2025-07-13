@@ -6,8 +6,8 @@
       "env": "node",
       "region": "oregon",
       "plan": "starter",
-      "buildCommand": "npm ci && cd sheets-connector-backend && npm ci",
-      "startCommand": "node server.js",
+      "buildCommand": "echo '=== RENDER BUILD START ===' && npm ci && echo '=== Installing backend deps ===' && cd sheets-connector-backend && npm ci && echo '=== RENDER BUILD COMPLETE ==='",
+      "startCommand": "echo '=== RENDER START ===' && node server.js",
       "runtime": "node",
       "healthCheckPath": "/health",
       "envVars": [
