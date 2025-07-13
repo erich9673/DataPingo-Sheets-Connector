@@ -20,7 +20,7 @@ class SlackService {
                 if (newValue === null || newValue === undefined || newValue === '') {
                     return '➖ No change';
                 }
-                return `🆕 ${newValue}`;
+                return `📈 ${newValue}`;
             }
             if (newValue === null || newValue === undefined || newValue === '') {
                 return `❌ ${oldValue}`;
@@ -157,7 +157,7 @@ class SlackService {
                         type: "section",
                         text: {
                             type: "mrkdwn",
-                            text: `*📊 Google Sheets Change Detected!*\n*Spreadsheet Name:* ${spreadsheetName || 'Unknown'}\n*Value Changed:* ${delta}\n*Time:* ${new Date().toLocaleString('en-US')}\n*Old Value:* ${oldValue || 'Empty'}\n*New Value:* ${newValue || 'Empty'}\n*Cell Range:* ${cellRange}${mentionText}`
+                            text: `*📊 Google Sheets Change Detected!*\n*Spreadsheet Name:* ${spreadsheetName || 'Unknown'}\n*Value Changed:* ${delta}\n*Time:* ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}\n*Old Value:* ${oldValue || 'Empty'}\n*New Value:* ${newValue || 'Empty'}\n*Cell Range:* ${cellRange}${mentionText}`
                         }
                     },
                     {
@@ -199,7 +199,7 @@ class SlackService {
                         type: "section",
                         text: {
                             type: "mrkdwn",
-                            text: "*🔔 This is a connection test*\n\nYour DataPingo Sheets Connector is successfully connected to Slack! 🎉\n\n*Status:* ✅ Connected\n*Time:* " + new Date().toLocaleString('en-US') + "\n\nYou can now set up monitoring for your Google Sheets."
+                            text: "*🔔 This is a connection test*\n\nYour DataPingo Sheets Connector is successfully connected to Slack! 🎉\n\n*Status:* ✅ Connected\n*Time:* " + new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }) + "\n\nYou can now set up monitoring for your Google Sheets."
                         }
                     }
                 ]

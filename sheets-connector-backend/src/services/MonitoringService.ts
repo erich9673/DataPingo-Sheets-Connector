@@ -280,7 +280,7 @@ export class MonitoringService {
                 change.oldValue,
                 change.newValue,
                 spreadsheetName,
-                job.userMention || '@channel'
+                job.userMention || undefined
             );
             
             if (result.success) {

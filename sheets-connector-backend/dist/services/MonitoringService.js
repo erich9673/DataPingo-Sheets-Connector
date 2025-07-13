@@ -223,7 +223,7 @@ class MonitoringService {
             const spreadsheetName = this.spreadsheetNames.get(job.sheetId) || 'Unknown Spreadsheet';
             const slackService = new SlackService_1.SlackService(job.webhookUrl);
             // Simple notification - no complex retry logic that can cause delays
-            const result = await slackService.sendNotification('Google Sheets change detected', job.sheetId, change.cellRange, change.oldValue, change.newValue, spreadsheetName, job.userMention || '@channel');
+            const result = await slackService.sendNotification('Google Sheets change detected', job.sheetId, change.cellRange, change.oldValue, change.newValue, spreadsheetName, job.userMention || undefined);
             if (result.success) {
                 (0, logger_1.safeLog)(`✅ Notification sent for ${change.cellRange}`);
             }
