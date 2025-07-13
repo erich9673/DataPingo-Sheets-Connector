@@ -619,9 +619,14 @@ app.use((err, req, res, next) => {
     });
 });
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+        ? `https://web-production-a261.up.railway.app` 
+        : `http://localhost:${PORT}`;
+    
     (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
-    (0, logger_1.safeLog)(`📊 API Base URL: http://localhost:${PORT}/api`);
-    (0, logger_1.safeLog)(`🔍 Health Check: http://localhost:${PORT}/health`);
+    (0, logger_1.safeLog)(`📊 API Base URL: ${baseUrl}/api`);
+    (0, logger_1.safeLog)(`🔍 Health Check: ${baseUrl}/health`);
+    (0, logger_1.safeLog)(`🌐 Frontend: ${baseUrl}`);
 });
 exports.default = app;
