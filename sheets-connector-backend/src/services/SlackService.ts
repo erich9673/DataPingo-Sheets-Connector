@@ -21,11 +21,11 @@ export class SlackService {
                 if (newValue === null || newValue === undefined || newValue === '') {
                     return '➖ No change';
                 }
-                return `➕ Added: ${newValue}`;
+                return `🆕 ${newValue}`;
             }
             
             if (newValue === null || newValue === undefined || newValue === '') {
-                return `➖ Removed: ${oldValue}`;
+                return `❌ ${oldValue}`;
             }
             
             // Try to parse as numbers
@@ -172,7 +172,7 @@ export class SlackService {
                         type: "section",
                         text: {
                             type: "mrkdwn",
-                            text: `*📊 Google Sheets Change Detected!*\n*Spreadsheet Name:* ${spreadsheetName || 'Unknown'}\n*Value Changed:* ${delta}\n*Time:* ${new Date().toLocaleString()}\n*Old Value:* ${oldValue || 'Empty'}\n*New Value:* ${newValue || 'Empty'}\n*Cell Range:* ${cellRange}${mentionText}`
+                            text: `*📊 Google Sheets Change Detected!*\n*Spreadsheet Name:* ${spreadsheetName || 'Unknown'}\n*Value Changed:* ${delta}\n*Time:* ${new Date().toLocaleString('en-US')}\n*Old Value:* ${oldValue || 'Empty'}\n*New Value:* ${newValue || 'Empty'}\n*Cell Range:* ${cellRange}${mentionText}`
                         }
                     },
                     {
@@ -215,7 +215,7 @@ export class SlackService {
                         type: "section",
                         text: {
                             type: "mrkdwn",
-                            text: "*🔔 This is a connection test*\n\nYour DataPingo Sheets Connector is successfully connected to Slack! 🎉\n\n*Status:* ✅ Connected\n*Time:* " + new Date().toLocaleString() + "\n\nYou can now set up monitoring for your Google Sheets."
+                            text: "*🔔 This is a connection test*\n\nYour DataPingo Sheets Connector is successfully connected to Slack! 🎉\n\n*Status:* ✅ Connected\n*Time:* " + new Date().toLocaleString('en-US') + "\n\nYou can now set up monitoring for your Google Sheets."
                         }
                     }
                 ]
