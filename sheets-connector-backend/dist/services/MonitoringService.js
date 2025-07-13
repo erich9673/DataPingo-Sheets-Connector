@@ -8,11 +8,11 @@ class MonitoringService {
         this.previousValues = new Map();
         this.spreadsheetNames = new Map();
         this.activeJobs = new Map();
-        // Network-safe caching and rate limiting
+        // Optimized caching and rate limiting for faster response times
         this.valueCache = new Map();
-        this.CACHE_TTL = 60000; // Increased to 60 seconds to reduce network load
+        this.CACHE_TTL = 15000; // Reduced to 15 seconds for faster response
         this.lastApiCall = new Map(); // Track last API call per sheet
-        this.MIN_API_INTERVAL = 45000; // Minimum 45 seconds between API calls for same sheet
+        this.MIN_API_INTERVAL = 20000; // Minimum 20 seconds between API calls for same sheet
         this.apiInProgress = new Set(); // Prevent concurrent API calls
         // Store push notification channel info for cleanup
         this.pushChannels = new Map();
@@ -97,8 +97,8 @@ class MonitoringService {
             ]);
             const key = `${sheetId}:${cellRange}`;
             this.previousValues.set(key, initialValues);
-            // Minimum 2 minutes interval to prevent network overload
-            const intervalMs = Math.max(frequencyMinutes * 60 * 1000, 120000); // Minimum 2 minutes
+            // Optimized minimum interval - allow 30 second minimum for faster response times
+            const intervalMs = Math.max(frequencyMinutes * 60 * 1000, 30000); // Minimum 30 seconds
             const job = {
                 id: jobId,
                 sheetId,
