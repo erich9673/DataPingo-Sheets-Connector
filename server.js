@@ -1,5 +1,5 @@
 // DataPingo Sheets Connector - Railway Deployment
-console.log('🚂 Starting DataPingo Sheets Connector on Railway...');
+console.log('�� Starting DataPingo Sheets Connector on Railway...');
 console.log('📍 Working directory:', process.cwd());
 console.log('🔧 Environment:', process.env.NODE_ENV);
 console.log('🌐 Port:', process.env.PORT);
@@ -33,8 +33,11 @@ try {
   
   if (fs.existsSync(backendPath)) {
     console.log('✅ Main backend found, loading...');
+    
+    // Load the main backend - it has graceful error handling built-in
     require(backendPath);
     console.log('✅ DataPingo Sheets Connector loaded successfully');
+    
   } else {
     console.log('⚠️ Main backend not found, falling back to test server');
     require('./test-server.js');
