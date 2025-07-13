@@ -5,10 +5,11 @@
       "name": "datapingo-sheets-connector",
       "env": "node",
       "region": "oregon",
-      "plan": "free",
-      "buildCommand": "echo '=== CUSTOM BUILD STARTING ===' && cd sheets-connector-backend && npm ci --only=production && echo '=== CUSTOM BUILD COMPLETED ==='",
-      "startCommand": "echo '=== CUSTOM START COMMAND ===' && cd sheets-connector-backend && npm start",
+      "plan": "starter",
+      "buildCommand": "npm ci && cd sheets-connector-backend && npm ci",
+      "startCommand": "node server.js",
       "runtime": "node",
+      "healthCheckPath": "/health",
       "envVars": [
         {
           "key": "NODE_ENV",
