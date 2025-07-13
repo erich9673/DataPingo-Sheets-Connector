@@ -95,13 +95,17 @@ app.post('/api/auth/google/callback', async (req, res) => {
 app.get('/auth/callback', async (req, res) => {
     try {
         const { code } = req.query;
+        const baseUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://web-production-a261.up.railway.app'
+            : 'http://localhost:3002';
+            
         if (!code) {
             return res.send(`
                 <html>
                     <body>
                         <h2>❌ Authorization Error</h2>
                         <p>No authorization code received.</p>
-                        <p><a href="http://localhost:3002">Return to app</a></p>
+                        <p><a href="${baseUrl}">Return to app</a></p>
                     </body>
                 </html>
             `);
@@ -126,17 +130,17 @@ app.get('/auth/callback', async (req, res) => {
                                 document.body.innerHTML = \`
                                     <h2>🎉 Authentication Complete!</h2>
                                     <p>You can now close this window and return to the app.</p>
-                                    <p><a href="http://localhost:3002" target="_parent">Return to DataPingo Sheets Connector</a></p>
+                                    <p><a href="${baseUrl}" target="_parent">Return to DataPingo Sheets Connector</a></p>
                                 \`;
-                                // Auto-close after 3 seconds
+                                // Auto-redirect after 3 seconds
                                 setTimeout(() => {
-                                    window.close();
+                                    window.location.href = '${baseUrl}';
                                 }, 3000);
                             } else {
                                 document.body.innerHTML = \`
                                     <h2>❌ Authentication Failed</h2>
                                     <p>Error: \${data.error}</p>
-                                    <p><a href="http://localhost:3002">Return to app to try again</a></p>
+                                    <p><a href="${baseUrl}">Return to app to try again</a></p>
                                 \`;
                             }
                         })
@@ -144,7 +148,7 @@ app.get('/auth/callback', async (req, res) => {
                             document.body.innerHTML = \`
                                 <h2>❌ Error</h2>
                                 <p>Failed to submit authorization: \${error.message}</p>
-                                <p><a href="http://localhost:3002">Return to app to try again</a></p>
+                                <p><a href="${baseUrl}">Return to app to try again</a></p>
                             \`;
                         });
                     </script>
@@ -154,12 +158,15 @@ app.get('/auth/callback', async (req, res) => {
     }
     catch (error) {
         (0, logger_1.safeError)('OAuth callback error:', error);
+        const baseUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://web-production-a261.up.railway.app'
+            : 'http://localhost:3002';
         res.send(`
             <html>
                 <body>
                     <h2>❌ Error</h2>
                     <p>Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
-                    <p><a href="http://localhost:3002">Return to app</a></p>
+                    <p><a href="${baseUrl}">Return to app</a></p>
                 </body>
             </html>
         `);
