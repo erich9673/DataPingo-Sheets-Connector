@@ -232,13 +232,14 @@ process.on('uncaughtException', (error) => {
 });
 
 // Start the server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Enhanced test server running on port ${PORT}`);
-  console.log(`🔗 Test URL: http://localhost:${PORT}`);
+  console.log(`🔗 Railway URL: http://0.0.0.0:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📦 Node.js version: ${process.version}`);
   console.log(`💾 Memory limit awareness: Monitoring enabled`);
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
+  console.log(`🚂 Railway deployment ready!`);
 });
 
 // Server timeout configuration - REDUCED for faster responses

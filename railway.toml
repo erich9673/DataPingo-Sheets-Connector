@@ -14,7 +14,6 @@ source.branch = "main"
 
 [services.datapingo-sheets-connector.variables]
 NODE_ENV = "production"
-PORT = "3000"
 GOOGLE_CLIENT_ID = "placeholder"
 GOOGLE_CLIENT_SECRET = "placeholder"
 GOOGLE_REDIRECT_URI = "https://datapingo-sheets-connector.up.railway.app/auth/callback"
