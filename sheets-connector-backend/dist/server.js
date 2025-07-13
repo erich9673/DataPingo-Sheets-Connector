@@ -105,7 +105,7 @@ app.get('/auth/callback', async (req, res) => {
                     <body>
                         <h2>❌ Authorization Error</h2>
                         <p>No authorization code received.</p>
-                        <p><a href="${baseUrl}">Return to app</a></p>
+                        <p><a href="` + baseUrl + `">Return to app</a></p>
                     </body>
                 </html>
             `);
@@ -122,7 +122,7 @@ app.get('/auth/callback', async (req, res) => {
                         fetch('/api/auth/google/callback', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ code: '${code}' })
+                            body: JSON.stringify({ code: '` + code + `' })
                         })
                         .then(response => response.json())
                         .then(data => {
@@ -130,17 +130,17 @@ app.get('/auth/callback', async (req, res) => {
                                 document.body.innerHTML = \`
                                     <h2>🎉 Authentication Complete!</h2>
                                     <p>You can now close this window and return to the app.</p>
-                                    <p><a href="${baseUrl}" target="_parent">Return to DataPingo Sheets Connector</a></p>
+                                    <p><a href="` + baseUrl + `" target="_parent">Return to DataPingo Sheets Connector</a></p>
                                 \`;
                                 // Auto-redirect after 3 seconds
                                 setTimeout(() => {
-                                    window.location.href = '${baseUrl}';
+                                    window.location.href = '` + baseUrl + `';
                                 }, 3000);
                             } else {
                                 document.body.innerHTML = \`
                                     <h2>❌ Authentication Failed</h2>
                                     <p>Error: \${data.error}</p>
-                                    <p><a href="${baseUrl}">Return to app to try again</a></p>
+                                    <p><a href="` + baseUrl + `">Return to app to try again</a></p>
                                 \`;
                             }
                         })
@@ -148,6 +148,10 @@ app.get('/auth/callback', async (req, res) => {
                             document.body.innerHTML = \`
                                 <h2>❌ Error</h2>
                                 <p>Failed to submit authorization: \${error.message}</p>
+                                <p><a href="` + baseUrl + `">Return to app to try again</a></p>
+                            \`;
+                        });
+                    </script>
                                 <p><a href="${baseUrl}">Return to app to try again</a></p>
                             \`;
                         });
@@ -165,8 +169,8 @@ app.get('/auth/callback', async (req, res) => {
             <html>
                 <body>
                     <h2>❌ Error</h2>
-                    <p>Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
-                    <p><a href="${baseUrl}">Return to app</a></p>
+                    <p>Authentication error: ` + (error instanceof Error ? error.message : 'Unknown error') + `</p>
+                    <p><a href="` + baseUrl + `">Return to app</a></p>
                 </body>
             </html>
         `);
