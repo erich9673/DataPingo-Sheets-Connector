@@ -1,171 +1,210 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { API_ENDPOINTS } from '../config/api';
 
-interface GoogleSheetsConnectorProps {
+interface FileUploadConnectorProps {
   isConnected: boolean;
   currentSpreadsheet: any;
-  onConnect: (spreadsheet: any, allSpreadsheets?: any[]) => void;
+  onConnect: (spreadsheet: any) => void;
 }
 
-const GoogleSheetsConnector: React.FC<GoogleSheetsConnectorProps> = ({
+const FileUploadConnector: React.FC<FileUploadConnectorProps> = ({
   isConnected,
   currentSpreadsheet,
   onConnect
 }) => {
   const [loading, setLoading] = useState(false);
-  const [availableSheets, setAvailableSheets] = useState<any[]>([]);
-  const [checkingAuth, setCheckingAuth] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Check authentication status on component mount
-  useEffect(() => {
-    checkAuthStatus();
+  const supportedFormats = [
+    { ext: '.csv', name: 'CSV Files', icon: '📊' },
+    { ext: '.xlsx', name: 'Excel Files', icon: '📗' },
+    { ext: '.xls', name: 'Excel Legacy', icon: '📗' },
+    { ext: '.ods', name: 'OpenDocument', icon: '📋' },
+    { ext: '.tsv', name: 'Tab-separated', icon: '📄' }
+  ];
+
+  const handleFiles = useCallback(async (files: FileList) => {
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    const maxSize = 10 * 1024 * 1024; // 10MB limit
+    
+    // Validate file size
+    if (file.size > maxSize) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+
+    // Validate file type
+    const fileName = file.name.toLowerCase();
+    const isSupported = supportedFormats.some(format => 
+      fileName.endsWith(format.ext)
+    );
+    
+    if (!isSupported) {
+      alert('Unsupported file format. Please upload CSV, Excel, or OpenDocument files.');
+      return;
+    }
+
+    setLoading(true);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(API_ENDPOINTS.uploadSpreadsheet, {
+        method: 'POST',
+        body: formData,
+        // Add progress tracking if needed
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        onConnect({
+          id: result.fileId,
+          name: file.name,
+          sheets: result.sheets || ['Sheet1'],
+          type: 'uploaded',
+          data: result.data,
+          columns: result.columns,
+          rows: result.rows
+        });
+        setUploadProgress(100);
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+      setTimeout(() => setUploadProgress(0), 2000);
+    }
+  }, [onConnect]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
   }, []);
 
-  const checkAuthStatus = async () => {
-    try {
-      const response = await fetch('http://localhost:3001/api/auth/status');
-      const data = await response.json();
-      
-      console.log('Auth status check:', data);
-      
-      if (data.success && data.authenticated) {
-        // Check if we have a refresh token by trying to fetch spreadsheets
-        const spreadsheetsResponse = await fetch('http://localhost:3001/api/sheets/spreadsheets');
-        const spreadsheetsData = await spreadsheetsResponse.json();
-        
-        console.log('Spreadsheets data:', spreadsheetsData);
-        
-        if (spreadsheetsData.success && spreadsheetsData.spreadsheets && spreadsheetsData.spreadsheets.length > 0) {
-          // Use the first spreadsheet for simplicity, but pass all spreadsheets
-          const firstSheet = spreadsheetsData.spreadsheets[0];
-          onConnect({
-            id: firstSheet.id,
-            name: firstSheet.name,
-            sheets: ['Sheet1'], // We'd need to fetch actual sheet names
-            webViewLink: firstSheet.webViewLink
-          }, spreadsheetsData.spreadsheets);
-        } else if (spreadsheetsData.error && spreadsheetsData.error.includes('refresh token')) {
-          // Need to re-authenticate with forced consent to get refresh token
-          console.log('No refresh token found, need to re-authenticate');
-          return; // Don't auto-connect, let user click the button to re-auth
-        }
-      }
-    } catch (error) {
-      console.error('Auth status check error:', error);
-    }
-  };
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  }, []);
 
-  const handleGoogleAuth = async () => {
-    setLoading(true);
-    try {
-      // Call backend to get auth URL with forced consent to ensure we get refresh token
-      const response = await fetch('http://localhost:3001/api/auth/google/url?force=true');
-      const data = await response.json();
-      
-      console.log('Auth response:', data);
-      
-      if (data.success && data.url) {
-        // Open auth URL in a new window/tab
-        const authWindow = window.open(data.url, '_blank', 'width=500,height=600');
-        
-        // Start checking for authentication completion
-        setCheckingAuth(true);
-        
-        // Add timeout to prevent infinite loading
-        const authTimeout = setTimeout(() => {
-          clearInterval(checkInterval);
-          setCheckingAuth(false);
-          setLoading(false);
-          alert('⏰ Authentication timeout. Please try again or check if you completed the OAuth process.');
-        }, 2 * 60 * 1000); // 2 minutes timeout
-        
-        const checkInterval = setInterval(async () => {
-          try {
-            const statusResponse = await fetch('http://localhost:3001/api/auth/status');
-            const statusData = await statusResponse.json();
-            
-            console.log('Polling auth status:', statusData);
-            
-            if (statusData.success && statusData.authenticated && statusData.hasRefreshToken) {
-              clearInterval(checkInterval);
-              clearTimeout(authTimeout);
-              setCheckingAuth(false);
-              setLoading(false);
-              
-              // Close the auth window if still open
-              if (authWindow && !authWindow.closed) {
-                authWindow.close();
-              }
-              
-              // Fetch user's spreadsheets
-              const spreadsheetsResponse = await fetch('http://localhost:3001/api/sheets/spreadsheets');
-              const spreadsheetsData = await spreadsheetsResponse.json();
-              
-              if (spreadsheetsData.success && spreadsheetsData.spreadsheets && spreadsheetsData.spreadsheets.length > 0) {
-                // Use the first spreadsheet for initial connection, but pass all spreadsheets
-                const firstSheet = spreadsheetsData.spreadsheets[0];
-                onConnect({
-                  id: firstSheet.id,
-                  name: firstSheet.name,
-                  sheets: ['Sheet1'], // We'd need to fetch actual sheet names
-                  webViewLink: firstSheet.webViewLink
-                }, spreadsheetsData.spreadsheets);
-              } else {
-                alert('✅ Authentication successful, but no spreadsheets found. Please create a Google Sheet first.');
-              }
-            }
-          } catch (error) {
-            console.error('Auth status check error:', error);
-          }
-        }, 1000); // Check every 1 second for faster response
-        
-        // Stop checking after 5 minutes to prevent infinite polling
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          setCheckingAuth(false);
-          setLoading(false);
-        }, 5 * 60 * 1000);
-        
-      } else {
-        console.error('No auth URL received:', data);
-        alert('❌ Failed to get Google auth URL. Please try again.');
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Google auth error:', error);
-      alert('❌ Error connecting to Google. Please check your connection and try again.');
-      setLoading(false);
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    const files = e.dataTransfer.files;
+    handleFiles(files);
+  }, [handleFiles]);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      handleFiles(files);
     }
-  };
+  }, [handleFiles]);
 
   return (
     <div className="connector-card fade-in">
       <div className="connector-header">
-        <h3>🔗 Step 1: Connect Google Sheets</h3>
+        <h3>📄 Step 1: Upload Your Spreadsheet</h3>
         {isConnected && <span className="status-badge connected">✅ Connected</span>}
       </div>
       
       <div className="connector-content">
         {!isConnected ? (
           <div>
-            <p>Connect Google Sheets to Slack for real-time notifications</p>
-            <div className="button-group">
-              <button 
-                className="btn-primary btn-large" 
-                onClick={handleGoogleAuth}
-                disabled={loading}
-              >
-                {loading ? '🔄 Authenticating...' : '� Connect with Google'}
-              </button>
+            <p>Upload your spreadsheet file (CSV, Excel, or OpenDocument) to start monitoring:</p>
+            
+            {/* File Upload Area */}
+            <div 
+              className={`upload-area ${dragActive ? 'drag-active' : ''} ${loading ? 'uploading' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => document.getElementById('file-input')?.click()}
+            >
+              <div className="upload-content">
+                {loading ? (
+                  <div className="upload-loading">
+                    <div className="spinner">🔄</div>
+                    <p>Uploading and processing...</p>
+                    {uploadProgress > 0 && (
+                      <div className="progress-bar">
+                        <div 
+                          className="progress-fill" 
+                          style={{ width: `${uploadProgress}%` }}
+                        ></div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="upload-icon">📁</div>
+                    <h4>Drop your file here or click to browse</h4>
+                    <p className="upload-instructions">
+                      Supports: CSV, Excel (.xlsx, .xls), OpenDocument (.ods), TSV
+                    </p>
+                    <p className="upload-limit">Maximum file size: 10MB</p>
+                  </>
+                )}
+              </div>
+              
+              <input
+                id="file-input"
+                type="file"
+                accept=".csv,.xlsx,.xls,.ods,.tsv"
+                onChange={handleFileInput}
+                style={{ display: 'none' }}
+              />
             </div>
-            <small style={{ color: 'var(--text-secondary)', marginTop: '1rem', display: 'block' }}>
-              ✅ Secure OAuth authentication • ✅ Read-only access • ✅ No data stored
-            </small>
+
+            {/* Supported Formats */}
+            <div className="supported-formats">
+              <h5>✅ Supported Formats:</h5>
+              <div className="format-list">
+                {supportedFormats.map((format, index) => (
+                  <div key={index} className="format-item">
+                    <span className="format-icon">{format.icon}</span>
+                    <span className="format-name">{format.name}</span>
+                    <span className="format-ext">{format.ext}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div className="upload-instructions-box">
+              <h5>📋 How to prepare your file:</h5>
+              <ol>
+                <li><strong>From Google Sheets:</strong> File → Download → CSV or Excel format</li>
+                <li><strong>From Excel:</strong> Save As → Choose .xlsx or .csv format</li>
+                <li><strong>Ensure your data:</strong> Has headers in the first row</li>
+                <li><strong>File size:</strong> Keep under 10MB for best performance</li>
+              </ol>
+            </div>
           </div>
         ) : (
           <div className="connected-info">
-            <h4>📊 {currentSpreadsheet?.name || 'Connected Spreadsheet'}</h4>
-            <p>✅ Successfully connected to Google Sheets</p>
-            <p>📈 Real-time monitoring is now active</p>
+            <h4>📊 {currentSpreadsheet?.name || 'Uploaded Spreadsheet'}</h4>
+            <p>✅ Successfully uploaded and processed</p>
+            <p>📈 Ready for real-time monitoring</p>
+            {currentSpreadsheet?.rows && (
+              <p>📋 {currentSpreadsheet.rows} rows • {currentSpreadsheet.columns} columns</p>
+            )}
           </div>
         )}
       </div>
@@ -173,4 +212,4 @@ const GoogleSheetsConnector: React.FC<GoogleSheetsConnectorProps> = ({
   );
 };
 
-export default GoogleSheetsConnector;
+export default FileUploadConnector;

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Debug - DataPingo</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px; 
+        }
+        .section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { background: #0056b3; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 4px; 
+            overflow-x: auto; 
+        }
+        .credentials {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Google OAuth Debug Tool</h1>
+    
+    <div class="credentials">
+        <h3>⚠️ Current Credentials Configuration</h3>
+        <p><strong>Client ID:</strong> 313354552322-vn5ekpohdetb8usanlq74ppbhislr5o4.apps.googleusercontent.com</p>
+        <p><strong>Client Secret:</strong> GOCSPX-2WWtC_3DOVU7g... (hidden for security)</p>
+        <p><strong>Redirect URI:</strong> http://localhost:3001/auth/callback</p>
+        <p><em>❗ Make sure these exact values are configured in your Google Cloud Console OAuth 2.0 Client IDs!</em></p>
+    </div>
+
+    <div class="section">
+        <h3>Step 1: Test Auth URL Generation</h3>
+        <button onclick="testAuthUrl()">Generate Auth URL</button>
+        <div id="authUrlResult"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 2: Manual OAuth Flow</h3>
+        <p>1. Click "Start OAuth Flow" below</p>
+        <p>2. Complete Google sign-in in the popup</p>
+        <p>3. Watch for success/error messages</p>
+        <button onclick="startOAuthFlow()">Start OAuth Flow</button>
+        <div id="oauthResult"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 3: Debug Information</h3>
+        <button onclick="getDebugInfo()">Get Debug Info</button>
+        <div id="debugInfo"></div>
+    </div>
+
+    <script>
+        async function testAuthUrl() {
+            const resultDiv = document.getElementById('authUrlResult');
+            resultDiv.innerHTML = '<p class="info">Generating auth URL...</p>';
+            
+            try {
+                const response = await fetch('/api/auth/google/url');
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Auth URL generated successfully!</p>
+                        <p><strong>URL:</strong></p>
+                        <pre>${data.url}</pre>
+                        <button onclick="window.open('${data.url}', '_blank')">Open Auth URL</button>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">❌ Error: ${data.error}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Network Error: ${error.message}</p>`;
+            }
+        }
+
+        async function startOAuthFlow() {
+            const resultDiv = document.getElementById('oauthResult');
+            resultDiv.innerHTML = '<p class="info">Starting OAuth flow...</p>';
+            
+            try {
+                // Get auth URL
+                const authResponse = await fetch('/api/auth/google/url');
+                const authData = await authResponse.json();
+                
+                if (!authData.success) {
+                    throw new Error(authData.error);
+                }
+                
+                // Open popup window for OAuth
+                const popup = window.open(authData.url, 'oauth', 'width=600,height=600');
+                
+                // Monitor the popup
+                const checkClosed = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkClosed);
+                        resultDiv.innerHTML += '<p class="info">Popup closed. Checking auth status...</p>';
+                        checkAuthStatus();
+                    }
+                }, 1000);
+                
+                resultDiv.innerHTML = '<p class="info">OAuth popup opened. Complete the sign-in process...</p>';
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ OAuth Flow Error: ${error.message}</p>`;
+            }
+        }
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/google-status');
+                const data = await response.json();
+                
+                const resultDiv = document.getElementById('oauthResult');
+                if (data.authenticated) {
+                    resultDiv.innerHTML += '<p class="success">✅ Authentication successful!</p>';
+                } else {
+                    resultDiv.innerHTML += '<p class="error">❌ Authentication failed or incomplete</p>';
+                }
+                resultDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                const resultDiv = document.getElementById('oauthResult');
+                resultDiv.innerHTML += `<p class="error">❌ Status Check Error: ${error.message}</p>`;
+            }
+        }
+
+        async function getDebugInfo() {
+            const resultDiv = document.getElementById('debugInfo');
+            resultDiv.innerHTML = '<p class="info">Gathering debug information...</p>';
+            
+            try {
+                // Test multiple endpoints
+                const tests = [
+                    { name: 'Health Check', url: '/health' },
+                    { name: 'Auth Status', url: '/api/auth/google-status' },
+                    { name: 'Auth URL', url: '/api/auth/google/url' }
+                ];
+                
+                let debugOutput = '<h4>Endpoint Tests:</h4>';
+                
+                for (const test of tests) {
+                    try {
+                        const response = await fetch(test.url);
+                        const data = await response.json();
+                        debugOutput += `
+                            <div style="margin: 10px 0; padding: 10px; border: 1px solid #ddd;">
+                                <strong>${test.name}</strong> (${response.status}): 
+                                <span class="${response.ok ? 'success' : 'error'}">${response.ok ? '✅' : '❌'}</span>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </div>
+                        `;
+                    } catch (error) {
+                        debugOutput += `
+                            <div style="margin: 10px 0; padding: 10px; border: 1px solid #dc3545;">
+                                <strong>${test.name}</strong>: <span class="error">❌ ${error.message}</span>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Check URL parameters (in case we're on a callback page)
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('code') || urlParams.has('error')) {
+                    debugOutput += '<h4>URL Parameters:</h4><pre>' + 
+                        JSON.stringify(Object.fromEntries(urlParams.entries()), null, 2) + '</pre>';
+                }
+                
+                resultDiv.innerHTML = debugOutput;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Debug Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

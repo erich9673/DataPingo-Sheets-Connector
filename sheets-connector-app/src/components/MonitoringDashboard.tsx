@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface SpreadsheetConfigData {
   spreadsheetId: string;
@@ -31,25 +32,38 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   const setupRealtimeMonitoring = async () => {
     setRealtimeSetupLoading(true);
     try {
+      // Determine if this is an uploaded file or Google Sheets
+      const isUploadedFile = spreadsheet.type === 'uploaded';
+      
+      const requestBody: any = {
+        cellRange: isUploadedFile ? config.range : `${config.sheetName}!${config.range}`,
+        webhookUrl: webhookUrl,
+        frequencyMinutes: 1, // Check every minute for now
+        userMention: '@channel',
+        conditions: config.conditions
+      };
+
+      if (isUploadedFile) {
+        // For uploaded files, use fileId
+        requestBody.fileId = spreadsheet.id;
+      } else {
+        // For Google Sheets, use sheetId
+        requestBody.sheetId = spreadsheet.id;
+      }
+
       // Start monitoring with the user's configuration
-      const response = await fetch('http://localhost:3001/api/monitoring/start', {
+      const response = await fetch(API_ENDPOINTS.monitoringStart, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sheetId: spreadsheet.id,
-          cellRange: `${config.sheetName}!${config.range}`,
-          webhookUrl: webhookUrl,
-          frequencyMinutes: 1, // Check every minute for now
-          userMention: '@channel',
-          conditions: config.conditions
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
       
       if (data.success) {
         setRealtimeEnabled(true);
-        alert('🚀 Real-time monitoring started! You will receive notifications when conditions are met.');
+        const sourceType = isUploadedFile ? 'uploaded file' : 'Google Sheets';
+        alert(`🚀 Real-time monitoring started for ${sourceType}! You will receive notifications when conditions are met.`);
         // Jobs will be automatically refreshed by the global component
       } else {
         alert(`❌ Failed to start monitoring: ${data.error}`);
@@ -64,7 +78,7 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   const stopMonitoring = async (jobId: string) => {
     try {
       console.log('Stopping monitoring job:', jobId);
-      const response = await fetch(`http://localhost:3001/api/monitoring/stop/${jobId}`, {
+      const response = await fetch(API_ENDPOINTS.monitoringStop(jobId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });

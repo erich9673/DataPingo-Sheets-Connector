@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DataPingo Auth Test</title>
+</head>
+<body>
+    <h1>DataPingo Auth Status Test</h1>
+    <div id="result"></div>
+    
+    <script>
+        async function testAuth() {
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/status?email=erich9673@gmail.com');
+                const result = await response.json();
+                
+                document.getElementById('result').innerHTML = `
+                    <h2>Backend Response:</h2>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                    <p><strong>Status:</strong> ${result.authenticated ? '✅ APPROVED' : '❌ NOT APPROVED'}</p>
+                `;
+                
+                if (result.authenticated) {
+                    document.body.style.background = '#d4edda';
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:3002';
+                    }, 2000);
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h2>Error:</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+        
+        testAuth();
+    </script>
+</body>
+</html>

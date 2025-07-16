@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface Sheet {
   properties: {
@@ -10,8 +11,12 @@ interface Sheet {
 interface Spreadsheet {
   id: string;
   name: string;
-  sheets: Sheet[];
-  webViewLink: string;
+  sheets: Sheet[] | string[];
+  webViewLink?: string;
+  type?: string;
+  data?: any[];
+  columns?: string[];
+  rows?: number;
 }
 
 interface Condition {
@@ -63,12 +68,27 @@ export const SpreadsheetConfig: React.FC<SpreadsheetConfigProps> = ({
     if (selectedSpreadsheet) {
       const spreadsheet = spreadsheets.find(s => s.id === selectedSpreadsheet);
       if (spreadsheet && spreadsheet.sheets) {
-        setAvailableSheets(spreadsheet.sheets);
-        if (spreadsheet.sheets.length > 0) {
-          setSelectedSheet(spreadsheet.sheets[0].properties.title);
+        // Handle both uploaded files (string[]) and Google Sheets (Sheet[])
+        if (spreadsheet.type === 'uploaded') {
+          // For uploaded files, create a default "Sheet1" if no sheets array exists
+          const sheetNames = (spreadsheet.sheets as string[]) || ['Sheet1'];
+          const sheetObjects = sheetNames.map((name, index) => ({
+            properties: { title: name, sheetId: index }
+          }));
+          setAvailableSheets(sheetObjects);
+          if (sheetObjects.length > 0) {
+            setSelectedSheet(sheetObjects[0].properties.title);
+          }
+        } else {
+          // For Google Sheets, sheets is Sheet[]
+          const googleSheets = spreadsheet.sheets as Sheet[];
+          setAvailableSheets(googleSheets);
+          if (googleSheets.length > 0) {
+            setSelectedSheet(googleSheets[0].properties.title);
+          }
         }
-      } else {
-        // Fetch sheet info from API
+      } else if (spreadsheet?.type !== 'uploaded') {
+        // Only fetch sheet info for Google Sheets, not uploaded files
         fetchSheetInfo(selectedSpreadsheet);
       }
     }
@@ -77,7 +97,7 @@ export const SpreadsheetConfig: React.FC<SpreadsheetConfigProps> = ({
   const fetchSheetInfo = async (spreadsheetId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/sheets/${spreadsheetId}/info`);
+      const response = await fetch(API_ENDPOINTS.spreadsheetInfo(spreadsheetId));
       const data = await response.json();
       
       if (data.success && data.sheets) {

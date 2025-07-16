@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Debug - DataPingo Sheets</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #f8fafc;
+        }
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 0.5rem;
+        }
+        button:hover {
+            background: #3367d6;
+        }
+        .secondary {
+            background: #6b7280;
+        }
+        .secondary:hover {
+            background: #4b5563;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔧 OAuth Debug Tool</h1>
+        <p>Use this page to debug Google OAuth authentication issues.</p>
+        
+        <div>
+            <button onclick="testAuthUrl()">1. Test Auth URL Generation</button>
+            <button onclick="checkAuthStatus()">2. Check Auth Status</button>
+            <button onclick="testSheetsAPI()">3. Test Sheets API</button>
+            <button onclick="startOAuth()" class="secondary">🚀 Start OAuth Flow</button>
+        </div>
+        
+        <div id="status" class="status info">Ready to test...</div>
+    </div>
+
+    <div class="card">
+        <h2>📋 Debug Steps</h2>
+        <ol>
+            <li><strong>Test Auth URL:</strong> Check if the backend can generate OAuth URLs</li>
+            <li><strong>Check Status:</strong> See current authentication state</li>
+            <li><strong>Test Sheets API:</strong> Try to fetch spreadsheets with current auth</li>
+            <li><strong>Start OAuth:</strong> Begin fresh OAuth flow if needed</li>
+        </ol>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const status = document.getElementById('status');
+            const timestamp = new Date().toLocaleTimeString();
+            status.textContent = `[${timestamp}] ${message}`;
+            status.className = `status ${type}`;
+        };
+
+        async function testAuthUrl() {
+            try {
+                log('Testing auth URL generation...', 'info');
+                const response = await fetch('/api/auth/google/url');
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`✅ Auth URL generated successfully:\n${data.url}`, 'success');
+                } else {
+                    log(`❌ Failed to generate auth URL:\n${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error:\n${error.message}`, 'error');
+            }
+        }
+
+        async function checkAuthStatus() {
+            try {
+                log('Checking authentication status...', 'info');
+                const response = await fetch('/api/auth/google-status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`✅ Auth Status:\nAuthenticated: ${data.authenticated}\nHas Refresh Token: ${data.hasRefreshToken}`, 'success');
+                } else {
+                    log(`❌ Auth status error:\n${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error:\n${error.message}`, 'error');
+            }
+        }
+
+        async function testSheetsAPI() {
+            try {
+                log('Testing Google Sheets API...', 'info');
+                const response = await fetch('/api/sheets/spreadsheets');
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`✅ Sheets API working:\nFound ${data.spreadsheets?.length || 0} spreadsheets`, 'success');
+                } else {
+                    log(`❌ Sheets API error:\n${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error:\n${error.message}`, 'error');
+            }
+        }
+
+        async function startOAuth() {
+            try {
+                log('Starting OAuth flow...', 'info');
+                const response = await fetch('/api/auth/google/url?force=true');
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('Redirecting to Google OAuth...', 'info');
+                    // Use same window instead of popup to avoid redirect issues
+                    window.location.href = data.url;
+                } else {
+                    log(`❌ Failed to start OAuth:\n${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Network error:\n${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check status on page load
+        window.onload = () => {
+            checkAuthStatus();
+        };
+    </script>
+</body>
+</html>

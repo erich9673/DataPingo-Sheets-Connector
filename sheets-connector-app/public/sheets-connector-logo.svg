@@ -1,0 +1,32 @@
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="60" fill="#667eea" rx="8"/>
+  
+  <!-- Grid icon representing sheets -->
+  <g transform="translate(15, 15)">
+    <!-- Grid lines -->
+    <rect x="0" y="0" width="30" height="30" fill="none" stroke="white" stroke-width="2"/>
+    <line x1="10" y1="0" x2="10" y2="30" stroke="white" stroke-width="1"/>
+    <line x1="20" y1="0" x2="20" y2="30" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="10" x2="30" y2="10" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="20" x2="30" y2="20" stroke="white" stroke-width="1"/>
+    
+    <!-- Data points -->
+    <circle cx="5" cy="5" r="2" fill="#10b981"/>
+    <circle cx="15" cy="15" r="2" fill="#f59e0b"/>
+    <circle cx="25" cy="25" r="2" fill="#ef4444"/>
+  </g>
+  
+  <!-- Slack icon -->
+  <g transform="translate(170, 20)">
+    <rect x="0" y="0" width="15" height="20" fill="white" rx="2"/>
+    <rect x="2" y="5" width="11" height="2" fill="#667eea"/>
+    <rect x="2" y="9" width="11" height="2" fill="#667eea"/>
+    <rect x="2" y="13" width="11" height="2" fill="#667eea"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="55" y="35" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">
+    Sheets Connector
+  </text>
+</svg>

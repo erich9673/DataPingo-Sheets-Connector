@@ -20,6 +20,11 @@ export const API_ENDPOINTS = {
   // Slack
   slackTest: `${API_BASE_URL}/api/slack/test`,
   
+  // File Upload
+  uploadSpreadsheet: `${API_BASE_URL}/api/upload/spreadsheet`,
+  getFileData: (fileId: string) => `${API_BASE_URL}/api/upload/file/${fileId}`,
+  getFileValues: (fileId: string, range: string) => `${API_BASE_URL}/api/upload/file/${fileId}/values/${range}`,
+  
   // Monitoring
   monitoringStart: `${API_BASE_URL}/api/monitoring/start`,
   monitoringJobs: `${API_BASE_URL}/api/monitoring/jobs`,

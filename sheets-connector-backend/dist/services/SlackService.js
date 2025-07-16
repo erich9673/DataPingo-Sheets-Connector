@@ -157,7 +157,7 @@ class SlackService {
                         type: "section",
                         text: {
                             type: "mrkdwn",
-                            text: `*📊 Google Sheets Change Detected!*\n*Spreadsheet Name:* ${spreadsheetName || 'Unknown'}\n*Value Changed:* ${delta}\n*Time:* ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}\n*Old Value:* ${oldValue || 'Empty'}\n*New Value:* ${newValue || 'Empty'}\n*Cell Range:* ${cellRange}${mentionText}`
+                            text: `*📊 Google Sheets Change Detected!*\n*Spreadsheet Name:* ${spreadsheetName || 'Unknown'}\n*Value Changed:* ${delta}\n*Time:* ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}\n*Old Value:* ${oldValue || 'Empty'}\n*New Value:* ${newValue || 'Empty'}\n*Cell:* ${cellRange}${mentionText}`
                         }
                     },
                     {

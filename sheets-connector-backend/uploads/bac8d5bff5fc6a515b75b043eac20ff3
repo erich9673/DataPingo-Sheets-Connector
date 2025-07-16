@@ -1,0 +1,7 @@
+Product,Price,Stock,Status
+Laptop,999.99,50,In Stock
+Mouse,29.99,100,In Stock
+Keyboard,79.99,25,Low Stock
+Monitor,299.99,15,In Stock
+Headphones,159.99,5,Critical
+Webcam,89.99,0,Out of Stock

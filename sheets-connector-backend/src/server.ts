@@ -3,7 +3,12 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import path from 'path';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
+import { createReadStream } from 'fs';
+import csvParser from 'csv-parser';
 import { v4 as uuidv4 } from 'uuid';
+import session from 'express-session';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 import { SlackService } from './services/SlackService';
 import { MonitoringService } from './services/MonitoringService';
@@ -13,15 +18,79 @@ import { safeLog, safeError } from './utils/logger';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
+
+// Auto-approval configuration
+let AUTO_APPROVE_USERS = process.env.AUTO_APPROVE_USERS === 'true' || false;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3002', 'http://127.0.0.1:3002'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'datapingo-session-secret-' + Math.random(),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // Set to true in production with HTTPS
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'lax' // Allow cross-site requests
+  }
+}));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
+
+// File upload configuration
+const upload = multer({
+    dest: path.join(__dirname, '../uploads/'),
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'text/csv',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.oasis.opendocument.spreadsheet'
+        ];
+        
+        const allowedExtensions = ['.csv', '.xls', '.xlsx', '.ods', '.tsv'];
+        const fileExtension = path.extname(file.originalname).toLowerCase();
+        
+        if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only CSV, Excel, and OpenDocument files are allowed.'));
+        }
+    }
+});
+
+// Store uploaded file data in memory (in production, use a database)
+const uploadedFiles = new Map<string, any>();
+
+// Store auth tokens for cross-domain authentication
+const authTokens = new Map<string, { 
+  timestamp: number, 
+  authenticated: boolean, 
+  hasRefreshToken: boolean,
+  googleCredentials?: any // Store Google OAuth credentials here
+}>();
+
+// Store Google credentials per session
+const sessionCredentials = new Map<string, any>();
+
+// Global Google credentials storage (for sharing between sessions and tokens)
+let globalGoogleCredentials: any = null;
 
 // Initialize services with error handling
 let googleSheetsService: GoogleSheetsService;
@@ -31,7 +100,7 @@ let monitoringService: MonitoringService;
 try {
     googleSheetsService = new GoogleSheetsService();
     slackService = new SlackService('dummy'); // We'll pass the real URL when using it
-    monitoringService = new MonitoringService(googleSheetsService);
+    monitoringService = new MonitoringService(googleSheetsService, uploadedFiles);
     safeLog('✅ Services initialized successfully');
 } catch (error) {
     safeError('⚠️ Service initialization failed, continuing with basic server:', error);
@@ -157,6 +226,35 @@ app.post('/api/auth/google/callback', async (req, res) => {
         }
 
         const result = await googleSheetsService.setAuthCode(code);
+        
+        if (result.success) {
+            // Generate auth token for frontend authentication
+            const authToken = uuidv4();
+            
+            // Store credentials for this session/token
+            const credentials = googleSheetsService.getCredentials();
+            authTokens.set(authToken, {
+                timestamp: Date.now(),
+                authenticated: true,
+                hasRefreshToken: true,
+                googleCredentials: credentials
+            });
+            
+            if (credentials) {
+                safeLog(`Stored Google credentials for token: ${authToken.substring(0, 8)}...`);
+            }
+            
+            // Clean up old tokens (older than 24 hours)
+            const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+            for (const [token, data] of authTokens.entries()) {
+                if (data.timestamp < oneDayAgo) {
+                    authTokens.delete(token);
+                }
+            }
+            
+            (result as any).authToken = authToken;
+        }
+        
         res.json(result);
     } catch (error) {
         safeError('Auth callback error:', error);
@@ -226,9 +324,14 @@ app.get('/auth/callback', async (req, res) => {
                                     <p>You can now close this window and return to the app.</p>
                                     <p><a href="/" target="_parent">Return to DataPingo Sheets Connector</a></p>
                                 \`;
-                                // Auto-redirect after 2 seconds
+                                // Store auth token and redirect
+                                const authToken = data.authToken;
+                                const redirectUrl = authToken 
+                                    ? \`http://localhost:3002?authToken=\${authToken}\`
+                                    : 'http://localhost:3002?auth=success';
+                                    
                                 setTimeout(() => {
-                                    window.location.href = '/';
+                                    window.location.href = redirectUrl;
                                 }, 2000);
                             } else {
                                 document.body.innerHTML = \`
@@ -263,9 +366,180 @@ app.get('/auth/callback', async (req, res) => {
     }
 });
 
-app.get('/api/auth/status', (req, res) => {
+// Manual approval system for user access control
+const pendingRequests = new Map<string, { email: string, timestamp: Date, approved?: boolean }>();
+const approvedUsers = new Set<string>();
+
+// Request access endpoint
+app.post('/api/auth/request-access', (req, res) => {
     try {
-        const status = googleSheetsService.getAuthStatus();
+        const { email } = req.body;
+        
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Valid email address required' 
+            });
+        }
+
+        // Check if already approved
+        if (approvedUsers.has(email)) {
+            return res.json({ 
+                success: true, 
+                message: 'User already approved',
+                status: 'approved'
+            });
+        }
+
+        // Check if already pending
+        if (pendingRequests.has(email)) {
+            return res.json({ 
+                success: true, 
+                message: 'Access request already pending',
+                status: 'pending'
+            });
+        }
+
+        // Add to pending requests
+        pendingRequests.set(email, {
+            email,
+            timestamp: new Date(),
+            approved: false
+        });
+
+        safeLog(`📧 New access request from: ${email}`);
+
+        // Auto-approve if enabled
+        if (AUTO_APPROVE_USERS) {
+            approvedUsers.add(email);
+            const request = pendingRequests.get(email);
+            if (request) {
+                request.approved = true;
+            }
+            safeLog(`🚀 Auto-approved user: ${email}`);
+            
+            return res.json({ 
+                success: true, 
+                message: 'Access request auto-approved!',
+                status: 'approved'
+            });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'Access request submitted successfully',
+            status: 'pending'
+        });
+    } catch (error) {
+        safeError('Request access error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Approve user endpoint (admin only)
+app.post('/api/auth/approve-user', (req, res) => {
+    try {
+        const { email, approved } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Email required' 
+            });
+        }
+
+        const request = pendingRequests.get(email);
+        if (!request) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Request not found' 
+            });
+        }
+
+        if (approved) {
+            // Approve user
+            approvedUsers.add(email);
+            request.approved = true;
+            safeLog(`✅ User approved: ${email}`);
+        } else {
+            // Deny user
+            pendingRequests.delete(email);
+            safeLog(`❌ User denied: ${email}`);
+        }
+
+        res.json({ 
+            success: true, 
+            message: approved ? 'User approved' : 'User denied' 
+        });
+    } catch (error) {
+        safeError('Approve user error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Get pending requests endpoint (admin only)
+app.get('/api/auth/pending-requests', (req, res) => {
+    try {
+        const pending = Array.from(pendingRequests.values())
+            .filter(req => !req.approved)
+            .map(req => ({
+                email: req.email,
+                timestamp: req.timestamp,
+                timeAgo: Math.floor((Date.now() - req.timestamp.getTime()) / (1000 * 60)) + ' minutes ago'
+            }));
+
+        res.json({ 
+            success: true, 
+            requests: pending,
+            count: pending.length
+        });
+    } catch (error) {
+        safeError('Get pending requests error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Check auth status with manual approval support
+app.get('/api/auth/status', async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        // If email provided, check manual approval status
+        if (email) {
+            if (approvedUsers.has(email as string)) {
+                return res.json({ 
+                    success: true, 
+                    authenticated: true, 
+                    user: { email: email as string },
+                    authMethod: 'manual'
+                });
+            } else if (pendingRequests.has(email as string)) {
+                return res.json({ 
+                    success: true, 
+                    authenticated: false, 
+                    pending: true,
+                    email: email as string
+                });
+            } else {
+                return res.json({ 
+                    success: true, 
+                    authenticated: false, 
+                    pending: false
+                });
+            }
+        }
+        
+        // Fallback to Google Sheets auth status
+        const status = await googleSheetsService.getAuthStatus();
         res.json({ success: true, ...status });
     } catch (error) {
         safeError('Auth status error:', error);
@@ -276,9 +550,135 @@ app.get('/api/auth/status', (req, res) => {
     }
 });
 
+// Original auth status endpoint (keeping for backward compatibility)
+app.get('/api/auth/google-status', async (req, res) => {
+    try {
+        const status = await googleSheetsService.getAuthStatus();
+        res.json({ success: true, ...status });
+    } catch (error) {
+        safeError('Auth status error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Auto-approval settings endpoints (admin only)
+app.get('/api/auth/auto-approval-status', (req, res) => {
+    try {
+        res.json({ 
+            success: true, 
+            autoApprovalEnabled: AUTO_APPROVE_USERS
+        });
+    } catch (error) {
+        safeError('Get auto-approval status error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+app.post('/api/auth/toggle-auto-approval', (req, res) => {
+    try {
+        const { enabled } = req.body;
+        
+        // Update the runtime auto-approval setting
+        AUTO_APPROVE_USERS = Boolean(enabled);
+        
+        safeLog(`🔧 Auto-approval ${enabled ? 'enabled' : 'disabled'} by admin`);
+        
+        res.json({ 
+            success: true, 
+            autoApprovalEnabled: Boolean(enabled),
+            message: `Auto-approval ${enabled ? 'enabled' : 'disabled'}`
+        });
+    } catch (error) {
+        safeError('Toggle auto-approval error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Debug endpoint to test auth token functionality
+app.get('/api/debug/test-token-auth', async (req, res) => {
+    try {
+        const authToken = req.query.authToken as string;
+        
+        if (!authToken) {
+            return res.json({ 
+                success: false, 
+                error: 'No auth token provided',
+                help: 'Add ?authToken=YOUR_TOKEN to test'
+            });
+        }
+        
+        // Check token
+        const tokenData = authTokens.get(authToken);
+        if (!tokenData) {
+            return res.json({ 
+                success: false, 
+                error: 'Invalid auth token',
+                tokenCount: authTokens.size
+            });
+        }
+        
+        // Test Google Sheets service
+        const googleStatus = await googleSheetsService.getAuthStatus();
+        
+        res.json({ 
+            success: true,
+            tokenValid: true,
+            tokenData: {
+                timestamp: tokenData.timestamp,
+                authenticated: tokenData.authenticated,
+                hasRefreshToken: tokenData.hasRefreshToken
+            },
+            googleAuthStatus: googleStatus,
+            tokenCount: authTokens.size
+        });
+    } catch (error) {
+        res.json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            tokenCount: authTokens.size
+        });
+    }
+});
+
 // Google Sheets Operations
 app.get('/api/sheets/spreadsheets', async (req, res) => {
     try {
+        // Check for auth token in query params or headers
+        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
+        
+        if (authToken) {
+            // Verify token first
+            const tokenData = authTokens.get(authToken);
+            if (!tokenData || !tokenData.authenticated) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Invalid or expired auth token' 
+                });
+            }
+            
+            // Use token-specific credentials
+            if (tokenData.googleCredentials) {
+                console.log('Using token-based authentication with stored credentials');
+                // Temporarily set the credentials for this request
+                googleSheetsService.setCredentials(tokenData.googleCredentials);
+            } else {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'No Google credentials found for this token' 
+                });
+            }
+        }
+        
+        // Try to get spreadsheets (will work with either session or token auth)
         const result = await googleSheetsService.getUserSpreadsheets();
         res.json(result);
     } catch (error) {
@@ -318,20 +718,201 @@ app.get('/api/sheets/:spreadsheetId/values/:range', async (req, res) => {
     }
 });
 
-// Slack Operations
-app.post('/api/slack/test', async (req, res) => {
+// Auth token verification endpoint
+app.post('/api/auth/verify-token', (req, res) => {
     try {
-        const { webhookUrl } = req.body;
-        if (!webhookUrl) {
-            return res.status(400).json({ success: false, error: 'Webhook URL required' });
+        const { authToken } = req.body;
+        
+        if (!authToken) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Auth token required' 
+            });
         }
+        
+        const tokenData = authTokens.get(authToken);
+        if (!tokenData) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Invalid or expired auth token' 
+            });
+        }
+        
+        // Check if token is expired (24 hours)
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        if (tokenData.timestamp < oneDayAgo) {
+            authTokens.delete(authToken);
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Auth token expired' 
+            });
+        }
+        
+        res.json({ 
+            success: true, 
+            authenticated: tokenData.authenticated,
+            hasRefreshToken: tokenData.hasRefreshToken
+        });
+    } catch (error) {
+        safeError('Token verification error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
 
-        const testSlackService = new SlackService(webhookUrl);
-        const result = await testSlackService.testConnection();
-
+app.get('/api/sheets/:spreadsheetId/info', async (req, res) => {
+    try {
+        const { spreadsheetId } = req.params;
+        const result = await googleSheetsService.getSpreadsheetInfo(spreadsheetId);
         res.json(result);
     } catch (error) {
-        safeError('Slack test error:', error);
+        safeError('Get spreadsheet info error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+app.get('/api/sheets/:spreadsheetId/values/:range', async (req, res) => {
+    try {
+        const { spreadsheetId, range } = req.params;
+        const result = await googleSheetsService.getCellValues(spreadsheetId, range);
+        res.json({ success: true, values: result });
+    } catch (error) {
+        safeError('Get cell values error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Google Sheets listing with manual approval support
+app.get('/api/sheets/list', async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        // Check if user is manually approved
+        if (email && approvedUsers.has(email as string)) {
+            // For manually approved users, we need Google OAuth for actual sheet access
+            const status = await googleSheetsService.getAuthStatus();
+            if (!status.authenticated) {
+                return res.json({ 
+                    success: false, 
+                    error: 'Google authentication required for sheet access',
+                    needsGoogleAuth: true
+                });
+            }
+            
+            // Get sheets from Google
+            const result = await googleSheetsService.getUserSpreadsheets();
+            return res.json(result);
+        }
+        
+        // Fallback to regular Google auth check
+        const result = await googleSheetsService.getUserSpreadsheets();
+        res.json(result);
+    } catch (error) {
+        safeError('Get sheets list error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Sheet data with manual approval support
+app.get('/api/sheets/:spreadsheetId/data', async (req, res) => {
+    try {
+        const { spreadsheetId } = req.params;
+        const { email } = req.query;
+        
+        // Check if user is manually approved
+        if (email && !approvedUsers.has(email as string)) {
+            return res.status(403).json({ 
+                success: false, 
+                error: 'User not approved for access' 
+            });
+        }
+        
+        // Get sheet data
+        const infoResult = await googleSheetsService.getSpreadsheetInfo(spreadsheetId);
+        if (!infoResult.success) {
+            return res.json(infoResult);
+        }
+        
+        // Get data from first sheet
+        const firstSheet = infoResult.sheets[0];
+        const range = `${firstSheet.properties.title}!A1:Z1000`;
+        const valuesResult = await googleSheetsService.getCellValues(spreadsheetId, range);
+        
+        // Convert values to structured data
+        const values = valuesResult || [];
+        const columns = values[0] || [];
+        const data = values.slice(1).map(row => {
+            const rowObj: any = {};
+            columns.forEach((col, index) => {
+                rowObj[col] = row[index] || '';
+            });
+            return rowObj;
+        });
+        
+        res.json({ 
+            success: true, 
+            data: data,
+            columns: columns,
+            rawValues: values
+        });
+    } catch (error) {
+        safeError('Get sheet data error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Session management for manual approval
+app.post('/api/auth/set-session', (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email || !approvedUsers.has(email)) {
+            return res.status(403).json({ 
+                success: false, 
+                error: 'User not approved' 
+            });
+        }
+        
+        // In a real app, you'd set a proper session cookie here
+        // For now, we'll just confirm the user is approved
+        res.json({ 
+            success: true, 
+            message: 'Session set',
+            user: { email }
+        });
+    } catch (error) {
+        safeError('Set session error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', (req, res) => {
+    try {
+        // Clear any session data here
+        res.json({ 
+            success: true, 
+            message: 'Logged out' 
+        });
+    } catch (error) {
+        safeError('Logout error:', error);
         res.status(500).json({ 
             success: false, 
             error: error instanceof Error ? error.message : 'Unknown error' 
@@ -342,13 +923,59 @@ app.post('/api/slack/test', async (req, res) => {
 // Monitoring Operations
 app.post('/api/monitoring/start', async (req, res) => {
     try {
-        const { sheetId, cellRange, webhookUrl, frequencyMinutes, userMention, conditions } = req.body;
+        const { sheetId, cellRange, webhookUrl, frequencyMinutes, userMention, conditions, fileId } = req.body;
         
-        if (!sheetId || !cellRange || !webhookUrl || !frequencyMinutes) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Missing required fields: sheetId, cellRange, webhookUrl, frequencyMinutes' 
-            });
+        // Get credentials for Google Sheets monitoring
+        let userCredentials = null;
+        if (!fileId) { // Only for Google Sheets, not uploaded files
+            const authToken = req.query.authToken || req.body.authToken;
+            if (authToken && authTokens.has(authToken as string)) {
+                const tokenData = authTokens.get(authToken as string);
+                if (tokenData && tokenData.googleCredentials) {
+                    userCredentials = tokenData.googleCredentials;
+                    safeLog('🔑 Using stored credentials for monitoring job');
+                } else {
+                    return res.status(401).json({ 
+                        success: false, 
+                        error: 'No Google credentials found. Please reconnect to Google Sheets.' 
+                    });
+                }
+            } else {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Authentication required for Google Sheets monitoring. Please include authToken.' 
+                });
+            }
+        }
+        
+        // Check if this is for an uploaded file or Google Sheets
+        const isUploadedFile = !!fileId;
+        
+        if (isUploadedFile) {
+            // For uploaded files, require fileId and cellRange
+            if (!fileId || !cellRange || !webhookUrl || !frequencyMinutes) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Missing required fields for file monitoring: fileId, cellRange, webhookUrl, frequencyMinutes' 
+                });
+            }
+            
+            // Verify file exists
+            const fileData = uploadedFiles.get(fileId);
+            if (!fileData) {
+                return res.status(404).json({
+                    success: false,
+                    error: `Uploaded file not found: ${fileId}`
+                });
+            }
+        } else {
+            // For Google Sheets, require sheetId
+            if (!sheetId || !cellRange || !webhookUrl || !frequencyMinutes) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Missing required fields for Google Sheets monitoring: sheetId, cellRange, webhookUrl, frequencyMinutes' 
+                });
+            }
         }
 
         const jobId = uuidv4();
@@ -387,18 +1014,25 @@ app.post('/api/monitoring/start', async (req, res) => {
                 type,
                 value: condition.value,
                 threshold,
-                enabled: true
+                enabled: true,
+                cellRef: condition.cellRef  // Pass through the cell reference for range support
             };
         });
         
+        // Set credentials for Google Sheets monitoring
+        if (userCredentials) {
+            monitoringService.setCredentials(userCredentials);
+        }
+        
         const result = await monitoringService.startMonitoring(
             jobId,
-            sheetId,
+            sheetId || `file_${fileId}`, // Use fileId as sheetId for uploaded files
             cellRange,
             frequencyMinutes,
             webhookUrl,
             userMention,
-            convertedConditions
+            convertedConditions,
+            fileId
         );
 
         if (result.success) {
@@ -593,6 +1227,35 @@ app.post('/api/debug/test-notification', async (req, res) => {
     }
 });
 
+// Test Slack connection endpoint
+app.post('/api/slack/test-connection', async (req, res) => {
+    try {
+        const { webhookUrl } = req.body;
+        if (!webhookUrl) {
+            return res.status(400).json({ success: false, error: 'Webhook URL required' });
+        }
+
+        // Validate Slack webhook URL format
+        if (!SlackService.isValidSlackWebhook(webhookUrl)) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Invalid Slack webhook URL format. Must start with https://hooks.slack.com/services/' 
+            });
+        }
+
+        const testSlackService = new SlackService(webhookUrl);
+        const result = await testSlackService.testConnection();
+
+        res.json(result);
+    } catch (error) {
+        safeError('Slack test connection error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
 // Google Drive Webhook Handler for Real-time Push Notifications
 app.post('/api/webhook/google-drive', async (req, res) => {
     try {
@@ -736,4 +1399,274 @@ app.listen(PORT, () => {
     safeLog(`🔍 Health Check: http://localhost:${PORT}/health`);
 });
 
-export default app;
+// File Upload Endpoint
+app.post('/api/upload/spreadsheet', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'No file uploaded' 
+            });
+        }
+
+        const file = req.file;
+        const fileId = uuidv4();
+        const filePath = file.path;
+        const fileName = file.originalname;
+        const fileExtension = path.extname(fileName).toLowerCase();
+
+        safeLog(`Processing uploaded file: ${fileName} (${fileExtension})`);
+
+        let data: any[] = [];
+        let columns: string[] = [];
+
+        try {
+            if (fileExtension === '.csv' || fileExtension === '.tsv') {
+                // Parse CSV/TSV files
+                const delimiter = fileExtension === '.tsv' ? '\t' : ',';
+                data = await parseCSVFile(filePath, delimiter);
+            } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
+                // Parse Excel files
+                data = await parseExcelFile(filePath);
+            } else if (fileExtension === '.ods') {
+                // Parse OpenDocument files (using xlsx library which supports ODS)
+                data = await parseExcelFile(filePath);
+            } else {
+                throw new Error(`Unsupported file format: ${fileExtension}`);
+            }
+
+            if (data.length === 0) {
+                throw new Error('File appears to be empty or could not be parsed');
+            }
+
+            // Extract columns from first row
+            columns = Object.keys(data[0]);
+            
+            // Store file data
+            const fileData = {
+                id: fileId,
+                name: fileName,
+                type: 'uploaded',
+                sheets: ['Sheet1'],
+                data: data,
+                columns: columns,
+                rows: data.length,
+                uploadedAt: new Date().toISOString()
+            };
+
+            uploadedFiles.set(fileId, fileData);
+
+            safeLog(`Successfully processed file ${fileName}: ${data.length} rows, ${columns.length} columns`);
+
+            res.json({
+                success: true,
+                fileId: fileId,
+                name: fileName,
+                sheets: ['Sheet1'],
+                data: data.slice(0, 25), // Return first 25 rows for preview (enough for 20 + headers)
+                columns: columns,
+                rows: data.length
+            });
+
+        } catch (parseError) {
+            safeError('File parsing error:', parseError);
+            res.status(400).json({
+                success: false,
+                error: `Failed to parse file: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`
+            });
+        }
+
+    } catch (error) {
+        safeError('Upload error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Upload failed'
+        });
+    }
+});
+
+// Helper function to parse CSV files
+function parseCSVFile(filePath: string, delimiter = ','): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+        const results: any[] = [];
+        
+        createReadStream(filePath)
+            .pipe(csvParser({ separator: delimiter }))
+            .on('data', (data) => results.push(data))
+            .on('end', () => resolve(results))
+            .on('error', (error) => reject(error));
+    });
+}
+
+// Helper function to parse Excel files
+function parseExcelFile(filePath: string): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+        try {
+            const workbook = XLSX.readFile(filePath);
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            resolve(jsonData);
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Get uploaded file data
+app.get('/api/upload/file/:fileId', (req, res) => {
+    try {
+        const { fileId } = req.params;
+        const fileData = uploadedFiles.get(fileId);
+        
+        if (!fileData) {
+            return res.status(404).json({
+                success: false,
+                error: 'File not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            ...fileData
+        });
+    } catch (error) {
+        safeError('Get file error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Get file data by range (for monitoring)
+app.get('/api/upload/file/:fileId/values/:range', (req, res) => {
+    try {
+        const { fileId, range } = req.params;
+        const fileData = uploadedFiles.get(fileId);
+        
+        if (!fileData) {
+            return res.status(404).json({
+                success: false,
+                error: 'File not found'
+            });
+        }
+
+        // Parse range (simple implementation for now)
+        // Range format: "A1:C10" or "Sheet1!A1:C10"
+        const data = fileData.data;
+        let values = data;
+
+        // For now, return all data - could implement actual range parsing
+        res.json({
+            success: true,
+            values: values
+        });
+    } catch (error) {
+        safeError('Get file range error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Google Sheets Authentication Routes
+app.get('/api/google/auth-url', async (req, res) => {
+    try {
+        const authUrl = await googleSheetsService.getAuthUrl();
+        res.json({
+            success: true,
+            authUrl: authUrl
+        });
+    } catch (error) {
+        safeError('Failed to get Google auth URL:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to generate authentication URL'
+        });
+    }
+});
+
+app.get('/api/google/oauth/callback', async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code || typeof code !== 'string') {
+            throw new Error('No authorization code provided');
+        }
+
+        await googleSheetsService.handleAuthCallback(code);
+        
+        res.send(`
+            <html>
+                <body>
+                    <script>
+                        window.close();
+                    </script>
+                    <p>Authentication successful! You can close this window.</p>
+                </body>
+            </html>
+        `);
+    } catch (error) {
+        safeError('OAuth callback error:', error);
+        res.status(500).send(`
+            <html>
+                <body>
+                    <script>
+                        window.close();
+                    </script>
+                    <p>Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}</p>
+                </body>
+            </html>
+        `);
+    }
+});
+
+app.get('/api/google/auth-status', async (req, res) => {
+    try {
+        const isAuthenticated = await googleSheetsService.isAuthenticated();
+        res.json({
+            authenticated: isAuthenticated
+        });
+    } catch (error) {
+        safeError('Auth status check error:', error);
+        res.json({
+            authenticated: false
+        });
+    }
+});
+
+app.get('/api/google/sheets', async (req, res) => {
+    try {
+        const sheets = await googleSheetsService.listSpreadsheets();
+        res.json({
+            success: true,
+            sheets: sheets
+        });
+    } catch (error) {
+        safeError('Failed to list Google Sheets:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load Google Sheets'
+        });
+    }
+});
+
+app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
+    try {
+        const { sheetId } = req.params;
+        const data = await googleSheetsService.getSheetData(sheetId);
+        res.json({
+            success: true,
+            data: data.values,
+            columns: data.columns,
+            rows: data.rows
+        });
+    } catch (error) {
+        safeError('Failed to get sheet data:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load sheet data'
+        });
+    }
+});
