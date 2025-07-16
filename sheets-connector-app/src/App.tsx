@@ -1,302 +1,1901 @@
 import React, { useState, useEffect } from 'react';
-import GoogleSheetsConnector from './components/GoogleSheetsConnector';
-import { SpreadsheetConfig } from './components/SpreadsheetConfig';
-import SlackConnector from './components/SlackConnector';
-import MonitoringDashboard from './components/MonitoringDashboard';
-import { API_ENDPOINTS } from './config/api';
 import './styles/App.css';
 
-interface SpreadsheetConfigData {
-  spreadsheetId: string;
-  spreadsheetName: string;
-  sheetName: string;
-  range: string;
-  conditions: Array<{
-    id: string;
-    cell: string;
-    operator: string;
-    value: string;
-    description: string;
-  }>;
-}
+type AuthStatus = 'idle' | 'requesting' | 'pending' | 'approved' | 'denied';
 
-interface AppState {
-  isGoogleConnected: boolean;
-  isConfigured: boolean;
-  isSlackConnected: boolean;
-  currentSpreadsheet: any;
-  availableSpreadsheets: any[];
-  spreadsheetConfig: SpreadsheetConfigData | null;
-  webhookUrl: string;
-}
+const App: React.FC = () => {
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  
+  // Google Sheets state
+  const [googleAuthStatus, setGoogleAuthStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [googleSheets, setGoogleSheets] = useState<any[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<any>(null);
+  const [availableSheetTabs, setAvailableSheetTabs] = useState<any[]>([]);
+  
+  // Slack configuration
+  const [slackWebhook, setSlackWebhook] = useState('https://hooks.slack.com/services/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');
+  const [slackConnected, setSlackConnected] = useState(false);
+  
+  // Monitoring state
+  const [showMonitoringConfig, setShowMonitoringConfig] = useState(false);
+  const [monitoringJobs, setMonitoringJobs] = useState<any[]>([]);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  
+  // Monitoring config form state
+  const [selectedSheetForMonitoring, setSelectedSheetForMonitoring] = useState<any>(null);
+  const [manualSpreadsheetUrl, setManualSpreadsheetUrl] = useState('');
+  const [useManualUrl, setUseManualUrl] = useState(false);
+  const [selectedSheetTab, setSelectedSheetTab] = useState('');
+  const [cellRange, setCellRange] = useState('A1');
+  const [frequencyMinutes, setFrequencyMinutes] = useState(0.5);
+  const [conditions, setConditions] = useState<any[]>([]);
+  const [userMention, setUserMention] = useState('');
+  
+  // Condition validation state
+  const [conditionsValidationStatus, setConditionsValidationStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
+  const [validationMessage, setValidationMessage] = useState('');
 
-interface MonitoringJob {
-  id: string;
-  sheetId: string;
-  cellRange: string;
-  frequencyMinutes: number;
-  isActive: boolean;
-  createdAt: string;
-  lastChecked?: string;
-  spreadsheetName: string;
-}
+  // Simple auth check
+  useEffect(() => {
+    // Check for auth token in URL (from OAuth redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const authToken = urlParams.get('authToken');
+    
+    if (authToken) {
+      // Store auth token and clean URL
+      localStorage.setItem('datapingo_auth_token', authToken);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      console.log('Auth token received and stored');
+    }
+    
+    const savedEmail = localStorage.getItem('datapingo_user_email');
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+      setAuthStatus('approved'); // Assume approved for testing
+      checkGoogleAuthStatus(); // Check Google auth when user is approved
+      loadMonitoringJobs(); // Load existing monitoring jobs
+    }
+  }, []);
 
-// Global Active Jobs Component
-const GlobalActiveJobs: React.FC = () => {
-  const [activeJobs, setActiveJobs] = useState<MonitoringJob[]>([]);
-
-  const loadActiveJobs = async () => {
+  const checkGoogleAuthStatus = async () => {
     try {
-      console.log('🔄 Loading active jobs from:', API_ENDPOINTS.monitoringJobs);
-      const response = await fetch(API_ENDPOINTS.monitoringJobs, {
-        method: 'GET',
-        headers: { 
-          'Accept': 'application/json' 
+      console.log('Checking Google auth status...');
+      
+      // First, try token-based authentication if we have a token
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      if (authToken) {
+        console.log('Found auth token, verifying...');
+        const tokenResponse = await fetch('http://localhost:3001/api/auth/verify-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authToken })
+        });
+        const tokenData = await tokenResponse.json();
+        
+        if (tokenData.success && tokenData.authenticated) {
+          console.log('Token verified, setting status and loading sheets...');
+          setGoogleAuthStatus('connected');
+          await loadGoogleSheets();
+          return;
+        } else {
+          console.log('Token invalid, removing...');
+          localStorage.removeItem('datapingo_auth_token');
+        }
+      }
+      
+      // Fallback to session-based authentication
+      const response = await fetch('http://localhost:3001/api/auth/google-status', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      console.log('Google auth status response:', data);
+      
+      if (data.success && data.authenticated) {
+        console.log('Google authenticated, setting status and loading sheets...');
+        setGoogleAuthStatus('connected');
+        await loadGoogleSheets();
+      } else {
+        console.log('Google not authenticated');
+        setGoogleAuthStatus('idle');
+      }
+    } catch (error) {
+      console.error('Error checking Google auth status:', error);
+      setGoogleAuthStatus('error');
+    }
+  };
+
+  const loadGoogleSheets = async () => {
+    try {
+      console.log('Loading Google Sheets...');
+      
+      // Get auth token from localStorage
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      const url = authToken 
+        ? `http://localhost:3001/api/sheets/spreadsheets?authToken=${authToken}`
+        : 'http://localhost:3001/api/sheets/spreadsheets';
+      
+      // Try the spreadsheets endpoint first
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      console.log('Google Sheets API response:', data);
+      
+      if (data.success) {
+        const sheets = data.spreadsheets || data.sheets || [];
+        console.log('Found sheets:', sheets);
+        setGoogleSheets(sheets);
+      } else {
+        console.error('API error:', data.error);
+        setError('Failed to load Google Sheets: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error loading Google Sheets:', error);
+      setError('Network error loading Google Sheets');
+    }
+  };
+
+  const loadSheetTabs = async (spreadsheetId: string) => {
+    try {
+      console.log('Loading sheet tabs for:', spreadsheetId);
+      
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      const url = authToken 
+        ? `http://localhost:3001/api/sheets/${spreadsheetId}/info?authToken=${authToken}`
+        : `http://localhost:3001/api/sheets/${spreadsheetId}/info`;
+      
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      console.log('Sheet tabs response:', data);
+      
+      if (data.success && data.sheets) {
+        setAvailableSheetTabs(data.sheets);
+        console.log('Found sheet tabs:', data.sheets.map((s: any) => s.properties.title));
+      } else {
+        console.error('Failed to load sheet tabs:', data.error);
+        setAvailableSheetTabs([]);
+      }
+    } catch (error) {
+      console.error('Error loading sheet tabs:', error);
+      setAvailableSheetTabs([]);
+    }
+  };
+
+  const handleGoogleConnect = async () => {
+    try {
+      setGoogleAuthStatus('connecting');
+      setError('');
+      
+      const response = await fetch('http://localhost:3001/api/auth/google/url', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        // Open Google OAuth in popup
+        const popup = window.open(data.url, 'google-auth', 'width=600,height=600');
+        
+        // Monitor popup
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            // Check auth status after popup closes
+            setTimeout(async () => {
+              console.log('OAuth popup closed, checking status...');
+              await checkGoogleAuthStatus();
+              // If connected, load sheets
+              if (googleAuthStatus === 'connected') {
+                await loadGoogleSheets();
+              }
+            }, 2000); // Give more time for OAuth to complete
+          }
+        }, 1000);
+      } else {
+        setError(data.error || 'Failed to get Google auth URL');
+        setGoogleAuthStatus('error');
+      }
+    } catch (error) {
+      console.error('Google connect error:', error);
+      setError('Failed to connect to Google Sheets');
+      setGoogleAuthStatus('error');
+    }
+  };
+
+  const handleSlackTest = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/slack/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
         },
-        mode: 'cors'
+        credentials: 'include',
+        body: JSON.stringify({ webhookUrl: slackWebhook })
       });
       
-      console.log('📡 Load jobs response status:', response.status);
-      console.log('📡 Load jobs response ok:', response.ok);
+      const data = await response.json();
+      if (data.success) {
+        setSlackConnected(true);
+        alert('✅ Slack connection successful! Check your Slack channel for the test message.');
+      } else {
+        alert('❌ Slack connection failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Slack test error:', error);
+      alert('❌ Network error testing Slack connection');
+    }
+  };
+
+  // Validate alert conditions
+  const handleValidateConditions = async () => {
+    setConditionsValidationStatus('validating');
+    setValidationMessage('');
+    
+    try {
+      // Basic validation checks
+      const validationErrors = [];
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Failed to load jobs:', errorText);
+      if (conditions.length === 0) {
+        setConditionsValidationStatus('valid');
+        setValidationMessage('✅ No specific conditions - will alert on any change');
         return;
       }
       
-      const data = await response.json();
-      console.log('✅ Active jobs loaded:', data);
+      // Check each condition
+      for (let i = 0; i < conditions.length; i++) {
+        const condition = conditions[i];
+        
+        // Check if cell reference is valid (single cell or range)
+        if (!condition.cellRef || !/^[A-Z]+\d+(:[A-Z]+\d+)?$/.test(condition.cellRef.trim())) {
+          validationErrors.push(`Condition ${i + 1}: Invalid cell reference (e.g., A1, B5, C10, or F11:F20)`);
+        }
+        
+        // Check if value is required for non-"changed" operators
+        if (condition.operator !== 'changed' && (!condition.value || condition.value.trim() === '')) {
+          validationErrors.push(`Condition ${i + 1}: Value is required for "${condition.operator}" operator`);
+        }
+        
+        // Check if numeric value is valid for comparison operators
+        if (['>', '<', '=', '!='].includes(condition.operator)) {
+          const numValue = parseFloat(condition.value);
+          if (isNaN(numValue)) {
+            validationErrors.push(`Condition ${i + 1}: Numeric value required for "${condition.operator}" operator`);
+          }
+        }
+      }
       
-      if (data.success) {
-        setActiveJobs(data.jobs || []);
+      if (validationErrors.length > 0) {
+        setConditionsValidationStatus('invalid');
+        setValidationMessage('❌ ' + validationErrors.join('; '));
       } else {
-        console.error('❌ API returned error:', data.error);
+        // Test conditions against current cell values if possible
+        if (selectedSheetForMonitoring && selectedSheetTab && conditions.length > 0) {
+          try {
+            const authToken = localStorage.getItem('datapingo_auth_token');
+            
+            // Test each condition's range
+            let totalDataFound = 0;
+            
+            for (const condition of conditions) {
+              if (condition.cellRef) {
+                const fullRange = selectedSheetTab ? `${selectedSheetTab}!${condition.cellRef}` : condition.cellRef;
+                const url = authToken 
+                  ? `http://localhost:3001/api/sheets/${selectedSheetForMonitoring.id}/values/${encodeURIComponent(fullRange)}?authToken=${authToken}`
+                  : `http://localhost:3001/api/sheets/${selectedSheetForMonitoring.id}/values/${encodeURIComponent(fullRange)}`;
+                  
+                const response = await fetch(url, { credentials: 'include' });
+                const data = await response.json();
+                
+                if (data.success && data.values) {
+                  totalDataFound += data.values.length;
+                }
+              }
+            }
+            
+            if (totalDataFound > 0) {
+              setConditionsValidationStatus('valid');
+              setValidationMessage(`✅ All conditions valid! Found ${totalDataFound} row(s) of data across all monitoring rules`);
+            } else {
+              setConditionsValidationStatus('valid');
+              setValidationMessage('✅ Conditions syntax valid, but no data found in specified ranges');
+            }
+          } catch (testError) {
+            setConditionsValidationStatus('valid');
+            setValidationMessage('✅ Conditions syntax valid, but unable to test against current data');
+          }
+        } else {
+          setConditionsValidationStatus('valid');
+          setValidationMessage('✅ All conditions are properly configured');
+        }
       }
     } catch (error) {
-      console.error('🚨 Error loading jobs:', error);
-      
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error(`❌ Network error: Cannot connect to backend server at ${API_ENDPOINTS.monitoringJobs}`);
-      }
+      console.error('Validation error:', error);
+      setConditionsValidationStatus('invalid');
+      setValidationMessage('❌ Error validating conditions');
     }
   };
 
-  const stopMonitoring = async (jobId: string) => {
+  // Monitoring functions
+  const loadMonitoringJobs = async () => {
     try {
-      console.log('🛑 Stopping monitoring job:', jobId);
-      console.log('🌐 Making request to:', API_ENDPOINTS.monitoringStop(jobId));
+      const response = await fetch('http://localhost:3001/api/monitoring/jobs', {
+        credentials: 'include'
+      });
+      const data = await response.json();
       
-      const response = await fetch(API_ENDPOINTS.monitoringStop(jobId), {
+      if (data.success) {
+        setMonitoringJobs(data.jobs || []);
+      } else {
+        console.error('Failed to load monitoring jobs:', data.error);
+      }
+    } catch (error) {
+      console.error('Error loading monitoring jobs:', error);
+    }
+  };
+
+  const createMonitoringJob = async () => {
+    if (!selectedSheetForMonitoring || !cellRange.trim()) {
+      alert('Please select a spreadsheet and specify a cell range to monitor.');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/monitoring/start', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+        headers: {
+          'Content-Type': 'application/json'
         },
-        mode: 'cors'
+        credentials: 'include',
+        body: JSON.stringify({
+          sheetId: selectedSheetForMonitoring.id,
+          cellRange: cellRange.trim(),
+          webhookUrl: slackWebhook,
+          frequencyMinutes: frequencyMinutes,
+          userMention: userMention.trim(),
+          conditions: conditions
+        })
       });
 
-      console.log('📡 Stop response status:', response.status);
-      console.log('📡 Stop response ok:', response.ok);
-      console.log('📡 Stop response headers:', Object.fromEntries([...response.headers.entries()]));
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ HTTP Error Response:', errorText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
-      }
-      
       const data = await response.json();
-      console.log('✅ Stop response data:', data);
       
       if (data.success) {
-        alert('✅ Monitoring stopped successfully!');
-        await loadActiveJobs(); // Refresh the jobs list
+        alert(`✅ Monitoring job created successfully!\n\nJob ID: ${data.jobId}\nMonitoring: ${selectedSheetForMonitoring.name}\nCell range: ${cellRange}\nFrequency: Every ${frequencyMinutes} minute(s)`);
+        
+        // Reset form
+        setSelectedSheetForMonitoring(null);
+        setCellRange('A1');
+        setFrequencyMinutes(5);
+        setConditions([]);
+        setUserMention('');
+        
+        // Reload jobs list
+        await loadMonitoringJobs();
+        
+        // Go back to main setup view
+        setShowMonitoringConfig(false);
       } else {
-        alert(`❌ Failed to stop monitoring: ${data.error || 'Unknown error'}`);
+        alert('❌ Failed to create monitoring job: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      console.error('🚨 Stop monitoring error:', error);
-      
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        alert(`❌ Network error: Cannot connect to backend server. Is the API running?`);
-      } else {
-        alert(`❌ Error stopping monitoring: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      console.error('Error creating monitoring job:', error);
+      alert('❌ Network error creating monitoring job');
     }
   };
 
-  useEffect(() => {
-    loadActiveJobs();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadActiveJobs, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const addCondition = () => {
+    setConditions([...conditions, {
+      id: Date.now(),
+      cellRef: '',
+      operator: 'changed',
+      value: '',
+      description: ''
+    }]);
+  };
 
-  if (activeJobs.length === 0) {
-    return (
-      <div className="connector-card fade-in" style={{ marginBottom: '2rem' }}>
-        <div className="connector-header">
-          <h3>📋 Active Monitoring Jobs (0)</h3>
-          <span className="status-badge">⚪ None</span>
-        </div>
-        
-        <div className="connector-content">
-          <p className="no-jobs">No active monitoring jobs. Set up monitoring below to see jobs here! 🚀</p>
-          
-          <button 
-            className="btn-secondary"
-            onClick={loadActiveJobs}
-          >
-            🔄 Refresh Jobs
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const updateCondition = (id: number, field: string, value: string) => {
+    setConditions(conditions.map(condition => 
+      condition.id === id ? { ...condition, [field]: value } : condition
+    ));
+  };
 
-  return (
-    <div className="connector-card fade-in" style={{ marginBottom: '2rem' }}>
-      <div className="connector-header">
-        <h3>📋 Active Monitoring Jobs ({activeJobs.length})</h3>
-        <span className="status-badge connected">🟢 Live</span>
-      </div>
+  const removeCondition = (id: number) => {
+    setConditions(conditions.filter(condition => condition.id !== id));
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!userEmail || !userEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    try {
+      setAuthStatus('requesting');
       
-      <div className="connector-content">
-        <div className="jobs-list">
-          {activeJobs.map((job) => (
-            <div key={job.id} className="job-item">
-              <div className="job-info">
-                <h5>{job.spreadsheetName}</h5>
-                <p>📍 Range: {job.cellRange}</p>
-                <p>⏰ Every {job.frequencyMinutes} minute(s)</p>
-                <p>🕒 Last checked: {job.lastChecked ? new Date(job.lastChecked).toLocaleString() : 'Never'}</p>
-              </div>
-              <div className="job-actions">
-                <span className={`status ${job.isActive ? 'active' : 'inactive'}`}>
-                  {job.isActive ? '🟢 Active' : '🔴 Inactive'}
-                </span>
-                <button 
-                  className="btn-danger btn-small"
-                  onClick={() => stopMonitoring(job.id)}
-                >
-                  🛑 Stop
-                </button>
-              </div>
+      const response = await fetch('http://localhost:3001/api/auth/request-access', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email: userEmail }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        localStorage.setItem('datapingo_user_email', userEmail);
+        if (data.status === 'approved') {
+          setAuthStatus('approved');
+        } else {
+          setAuthStatus('pending');
+        }
+      } else {
+        setError(data.error || 'Failed to request access');
+        setAuthStatus('idle');
+      }
+    } catch (error) {
+      console.error('Request access error:', error);
+      setError('Network error. Please try again.');
+      setAuthStatus('idle');
+    }
+  };
+
+  const renderAuthForm = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="logo-section">
+          <div className="primary-brand">
+            <img 
+              src="/datapingo-logo.png" 
+              alt="DataPingo" 
+              className="company-logo-main"
+              onLoad={() => console.log('DataPingo logo loaded successfully')}
+              onError={(e) => {
+                console.error('DataPingo logo failed to load, trying JPG fallback');
+                console.log('Attempted to load:', e.currentTarget.src);
+                // Try JPG fallback first
+                if (e.currentTarget.src.endsWith('.png')) {
+                  e.currentTarget.src = '/datapingo-logo.jpg';
+                  return;
+                }
+                // If both fail, show fallback emoji
+                e.currentTarget.style.display = 'none';
+                const fallback = document.createElement('div');
+                fallback.textContent = '🏢 DataPingo';
+                fallback.style.fontSize = '2.5rem';
+                fallback.style.fontWeight = 'bold';
+                fallback.style.display = 'flex';
+                fallback.style.alignItems = 'center';
+                e.currentTarget.parentNode?.insertBefore(fallback, e.currentTarget);
+              }}
+            />
+          </div>
+          
+          <div className="product-brand">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <img 
+                src="/sheets-connector-logo-simple.jpg" 
+                alt="Sheets Connector" 
+                className="product-logo-simple"
+                style={{ 
+                  width: '40px', 
+                  height: '40px', 
+                  borderRadius: '8px',
+                  flexShrink: 0
+                }}
+                onLoad={() => console.log('Sheets Connector simple logo loaded successfully')}
+                onError={(e) => {
+                  console.error('Sheets Connector simple logo failed to load');
+                  console.log('Attempted to load:', e.currentTarget.src);
+                  // Show fallback emoji instead
+                  e.currentTarget.style.display = 'none';
+                  const fallback = document.createElement('div');
+                  fallback.textContent = '📊';
+                  fallback.style.fontSize = '2.5rem';
+                  fallback.style.display = 'flex';
+                  fallback.style.alignItems = 'center';
+                  e.currentTarget.parentNode?.insertBefore(fallback, e.currentTarget);
+                }}
+              />
+              <h2 style={{ 
+                margin: 0, 
+                fontSize: '1.5rem'  /* Reduced from default 2.5rem by 40% */
+              }}>Sheets Connector for Slack</h2>
             </div>
-          ))}
+          </div>
+          
+          <p>Real-time Google Sheets monitoring with intelligent Slack notifications</p>
         </div>
-        
-        <button 
-          className="btn-secondary"
-          onClick={loadActiveJobs}
-        >
-          🔄 Refresh Jobs
-        </button>
+
+        <form onSubmit={handleEmailSubmit} className="auth-form">
+          <div className="form-group">
+            <label htmlFor="email">Email Address</label>
+            <input
+              type="email"
+              id="email"
+              value={userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+              disabled={authStatus === 'requesting'}
+            />
+          </div>
+
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            className="submit-button"
+            disabled={authStatus === 'requesting'}
+          >
+            {authStatus === 'requesting' ? 'Requesting Access...' : 'Request Access'}
+          </button>
+        </form>
+
+        <div className="info-section">
+          <h3>✨ Features</h3>
+          <ul>
+            <li>📊 Monitor Google Sheets in real-time</li>
+            <li>🔔 Get Slack notifications on changes</li>
+            <li>⚡ Set custom alert conditions</li>
+            <li>📈 Track multiple spreadsheets</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
-};
 
-const App: React.FC = () => {
-  const [state, setState] = useState<AppState>({
-    isGoogleConnected: false,
-    isConfigured: false,
-    isSlackConnected: false,
-    currentSpreadsheet: null,
-    availableSpreadsheets: [],
-    spreadsheetConfig: null,
-    webhookUrl: ''
-  });
+  const renderPendingApproval = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="pending-section">
+          <h2>⏳ Approval Pending</h2>
+          <p>Your access request has been submitted for <strong>{userEmail}</strong></p>
+          <p>Please wait for an administrator to approve your request.</p>
+          
+          <div className="admin-info">
+            <p><strong>For Admins:</strong></p>
+            <p>Review and approve requests at: <a href="http://localhost:3001/admin.html" target="_blank">Admin Dashboard</a></p>
+          </div>
 
-  const updateState = (updates: Partial<AppState>) => {
-    setState(prev => ({ ...prev, ...updates }));
+          <button 
+            onClick={() => {
+              localStorage.removeItem('datapingo_user_email');
+              setUserEmail('');
+              setAuthStatus('idle');
+            }}
+            className="secondary-button"
+          >
+            Use Different Email
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderApprovedUser = () => (
+    <div className="dashboard-container">
+      <div className="header">
+        <h1>📊 Spreadsheet Monitoring</h1>
+        <div className="user-info">
+          <span>👤 {userEmail}</span>
+          <button 
+            onClick={() => {
+              localStorage.removeItem('datapingo_user_email');
+              localStorage.removeItem('datapingo_auth_token');
+              setUserEmail('');
+              setAuthStatus('idle');
+              setGoogleAuthStatus('idle');
+            }}
+            className="logout-button"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <div className="dashboard-content">
+        {error && (
+          <div className="error-message" style={{ marginBottom: '1rem' }}>
+            {error}
+          </div>
+        )}
+
+        {/* Main Monitoring Setup Card */}
+        <div className="step-card" style={{ marginBottom: '2rem' }}>
+          <h3>🚀 Set Up New Monitor</h3>
+
+          {/* Google Authentication Status - Moved to Top */}
+          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>🔗 Google Sheets Connection</span>
+              {googleAuthStatus === 'connected' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: 'var(--success-color)', fontSize: '0.9rem', fontWeight: '500' }}>✅ Connected</span>
+                  <button 
+                    className="secondary-button" 
+                    onClick={loadGoogleSheets}
+                    style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  className="primary-button" 
+                  onClick={handleGoogleConnect}
+                  disabled={googleAuthStatus === 'connecting'}
+                  style={{ fontSize: '0.9rem', padding: '0.6rem 1.2rem' }}
+                >
+                  {googleAuthStatus === 'connecting' ? 'Connecting...' : 'Connect Google'}
+                </button>
+              )}
+            </div>
+            {googleAuthStatus === 'connected' && (
+              <div style={{ fontSize: '0.85rem', color: '#666', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>Found {googleSheets.length} spreadsheet(s)</span>
+                {googleSheets.length >= 100 && (
+                  <span style={{ 
+                    color: 'var(--warning-color)', 
+                    background: '#fef3c7', 
+                    padding: '0.25rem 0.5rem', 
+                    borderRadius: '4px',
+                    fontSize: '0.8rem'
+                  }}>
+                    (showing first 100)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Spreadsheet Selection */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+              📋 Select Spreadsheet
+            </label>
+            
+            {/* Elegant Toggle Switch */}
+            <div style={{ 
+              marginBottom: '1.5rem',
+              background: '#f8fafc',
+              padding: '0.5rem',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              position: 'relative'
+            }}>
+              <button
+                type="button"
+                onClick={() => setUseManualUrl(false)}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  background: !useManualUrl ? '#667eea' : 'transparent',
+                  color: !useManualUrl ? 'white' : '#64748b',
+                  boxShadow: !useManualUrl ? '0 2px 4px rgba(102, 126, 234, 0.3)' : 'none'
+                }}
+              >
+                📊 My Spreadsheets
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseManualUrl(true)}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  background: useManualUrl ? '#667eea' : 'transparent',
+                  color: useManualUrl ? 'white' : '#64748b',
+                  boxShadow: useManualUrl ? '0 2px 4px rgba(102, 126, 234, 0.3)' : 'none'
+                }}
+              >
+                🔗 Enter URL
+              </button>
+            </div>
+
+            {!useManualUrl ? (
+              // Dropdown selection with enhanced styling
+              <div>
+                <select
+                  value={selectedSheetForMonitoring?.id || ''}
+                  onChange={async (e) => {
+                    const sheet = googleSheets.find(s => s.id === e.target.value);
+                    setSelectedSheetForMonitoring(sheet || null);
+                    if (sheet) {
+                      await loadSheetTabs(sheet.id);
+                    } else {
+                      setAvailableSheetTabs([]);
+                    }
+                  }}
+                  disabled={googleAuthStatus !== 'connected'}
+                  style={{
+                    width: '100%',
+                    padding: '1rem',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    fontSize: '1rem',
+                    background: googleAuthStatus !== 'connected' ? '#f8fafc' : 'white',
+                    cursor: googleAuthStatus !== 'connected' ? 'not-allowed' : 'pointer',
+                    transition: 'border-color 0.2s ease',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                >
+                  <option value="">
+                    {googleAuthStatus !== 'connected' ? '🔒 Connect to Google first...' : '🔍 Choose a spreadsheet...'}
+                  </option>
+                  {googleSheets.map(sheet => (
+                    <option key={sheet.id} value={sheet.id}>
+                      📊 {sheet.name}
+                    </option>
+                  ))}
+                </select>
+                {googleAuthStatus === 'connected' && googleSheets.length === 0 && (
+                  <div style={{ 
+                    marginTop: '0.75rem', 
+                    padding: '0.75rem', 
+                    background: '#fef3c7', 
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    color: '#92400e'
+                  }}>
+                    ⚠️ No spreadsheets found. Try refreshing or check your Google Drive permissions.
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Manual URL input with enhanced styling
+              <div>
+                <input
+                  type="url"
+                  value={manualSpreadsheetUrl}
+                  onChange={(e) => setManualSpreadsheetUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit"
+                  style={{
+                    width: '100%',
+                    padding: '1rem',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    fontSize: '1rem',
+                    background: 'white',
+                    transition: 'border-color 0.2s ease',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                />
+                <div style={{ 
+                  marginTop: '0.75rem', 
+                  padding: '0.75rem', 
+                  background: '#f0f9ff', 
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  color: '#0369a1'
+                }}>
+                  💡 <strong>Tip:</strong> Copy the URL from your browser when viewing the Google Sheet. 
+                  Make sure the sheet is publicly accessible or you have appropriate permissions.
+                </div>
+              </div>
+            )}
+            
+            {/* Enhanced Selection Confirmation */}
+            {(selectedSheetForMonitoring || (manualSpreadsheetUrl && extractSheetIdFromUrl(manualSpreadsheetUrl))) && (
+              <div style={{ 
+                marginTop: '1rem', 
+                padding: '1rem', 
+                background: 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)',
+                borderRadius: '10px',
+                border: '1px solid #b7dfbb',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: '1.2rem' }}>✅</span>
+                <div>
+                  <div style={{ fontWeight: 'bold', color: '#155724' }}>
+                    Spreadsheet Selected
+                  </div>
+                  <div style={{ fontSize: '0.9rem', color: '#155724', opacity: 0.8 }}>
+                    {useManualUrl ? 
+                      `Manual URL (ID: ${extractSheetIdFromUrl(manualSpreadsheetUrl)?.substring(0, 12)}...)` : 
+                      selectedSheetForMonitoring?.name
+                    }
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sheet Tab Selection */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
+              📑 Sheet Tab
+            </label>
+            <select
+              value={selectedSheetTab}
+              onChange={(e) => setSelectedSheetTab(e.target.value)}
+              disabled={!selectedSheetForMonitoring || availableSheetTabs.length === 0}
+              style={{
+                width: '100%',
+                padding: '1rem',
+                border: '2px solid #e2e8f0',
+                borderRadius: '10px',
+                fontSize: '1rem',
+                background: (!selectedSheetForMonitoring || availableSheetTabs.length === 0) ? '#f8fafc' : 'white',
+                cursor: (!selectedSheetForMonitoring || availableSheetTabs.length === 0) ? 'not-allowed' : 'pointer',
+                transition: 'border-color 0.2s ease',
+                outline: 'none'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#667eea'}
+              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+            >
+              <option value="">
+                {!selectedSheetForMonitoring ? 'Select spreadsheet first...' : 
+                 availableSheetTabs.length === 0 ? 'Loading sheet tabs...' : 
+                 'Choose a sheet tab...'}
+              </option>
+              {availableSheetTabs.map(sheet => (
+                <option key={sheet.properties.sheetId} value={sheet.properties.title}>
+                  📄 {sheet.properties.title}
+                </option>
+              ))}
+            </select>
+            <small style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem', display: 'block' }}>
+              {availableSheetTabs.length > 0 ? 
+                `Found ${availableSheetTabs.length} sheet(s)` : 
+                'Select a spreadsheet to see available sheets'}
+            </small>
+          </div>
+
+          {/* Unified: What to Monitor */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+              🎯 What to Monitor
+            </label>
+            <div style={{ padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              {conditions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', background: 'white', borderRadius: '8px', border: '2px dashed #cbd5e1' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>�</div>
+                  <p style={{ color: '#64748b', fontSize: '1rem', margin: '0 0 1rem 0', fontWeight: '500' }}>
+                    Add monitoring rules to get started
+                  </p>
+                  <p style={{ color: '#94a3b8', fontSize: '0.9rem', margin: 0 }}>
+                    Each rule defines a cell/range to watch and when to alert
+                  </p>
+                </div>
+              ) : (
+                conditions.map((condition, index) => (
+                  <div key={index} style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1.5fr 1fr 1fr auto',
+                    alignItems: 'center', 
+                    gap: '1rem', 
+                    marginBottom: '1rem',
+                    padding: '1rem',
+                    background: 'white',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                  }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                        📍 Cell/Range to Watch
+                      </label>
+                      <input
+                        type="text"
+                        value={condition.cellRef || ''}
+                        onChange={(e) => {
+                          const newConditions = [...conditions];
+                          newConditions[index].cellRef = e.target.value;
+                          setConditions(newConditions);
+                        }}
+                        placeholder="B1:B20 or A1"
+                        style={{ 
+                          width: '100%',
+                          padding: '0.75rem', 
+                          border: '1px solid #cbd5e1', 
+                          borderRadius: '6px',
+                          fontSize: '0.9rem'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                        🔍 When
+                      </label>
+                      <select
+                        value={condition.operator}
+                        onChange={(e) => {
+                          const newConditions = [...conditions];
+                          newConditions[index].operator = e.target.value;
+                          setConditions(newConditions);
+                        }}
+                        style={{ 
+                          width: '100%',
+                          padding: '0.75rem', 
+                          border: '1px solid #cbd5e1', 
+                          borderRadius: '6px',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        <option value="changed">changes</option>
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value="=">=</option>
+                        <option value="!=">≠</option>
+                        <option value="contains">contains</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.25rem' }}>
+                        🎯 Value
+                      </label>
+                      <input
+                        type="text"
+                        value={condition.value}
+                        onChange={(e) => {
+                          const newConditions = [...conditions];
+                          newConditions[index].value = e.target.value;
+                          setConditions(newConditions);
+                        }}
+                        placeholder={condition.operator === 'changed' ? 'N/A' : '500'}
+                        disabled={condition.operator === 'changed'}
+                        style={{ 
+                          width: '100%',
+                          padding: '0.75rem', 
+                          border: '1px solid #cbd5e1', 
+                          borderRadius: '6px',
+                          fontSize: '0.9rem',
+                          background: condition.operator === 'changed' ? '#f1f5f9' : 'white'
+                        }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newConditions = conditions.filter((_, i) => i !== index);
+                        setConditions(newConditions);
+                      }}
+                      style={{ 
+                        background: '#fee2e2', 
+                        color: '#991b1b', 
+                        border: 'none', 
+                        borderRadius: '6px',
+                        padding: '0.75rem',
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        minWidth: '36px'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+              
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button
+                  onClick={() => {
+                    setConditions([...conditions, { id: Date.now(), cellRef: '', operator: 'changed', value: '' }]);
+                  }}
+                  style={{ 
+                    padding: '1rem 1.5rem',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                  onMouseEnter={(e) => (e.target as HTMLElement).style.transform = 'translateY(-1px)'}
+                  onMouseLeave={(e) => (e.target as HTMLElement).style.transform = 'translateY(0)'}
+                >
+                  ➕ Add Monitoring Rule
+                </button>
+              </div>
+              
+              {/* Condition Validation Button */}
+              <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <button
+                  onClick={handleValidateConditions}
+                  disabled={conditionsValidationStatus === 'validating'}
+                  style={{
+                    padding: '0.75rem 1.25rem',
+                    background: conditionsValidationStatus === 'valid' ? '#10b981' : 
+                               conditionsValidationStatus === 'invalid' ? '#ef4444' : '#667eea',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: conditionsValidationStatus === 'validating' ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  {conditionsValidationStatus === 'validating' ? (
+                    <>🔄 Validating...</>
+                  ) : conditionsValidationStatus === 'valid' ? (
+                    <>✅ Conditions Valid</>
+                  ) : conditionsValidationStatus === 'invalid' ? (
+                    <>❌ Fix Issues</>
+                  ) : (
+                    <>⚙️ Test Conditions</>
+                  )}
+                </button>
+                
+                {validationMessage && (
+                  <div style={{
+                    padding: '0.5rem 0.75rem',
+                    background: conditionsValidationStatus === 'valid' ? '#ecfdf5' : 
+                               conditionsValidationStatus === 'invalid' ? '#fef2f2' : '#f1f5f9',
+                    color: conditionsValidationStatus === 'valid' ? '#059669' : 
+                           conditionsValidationStatus === 'invalid' ? '#dc2626' : '#475569',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    flex: 1,
+                    border: `1px solid ${conditionsValidationStatus === 'valid' ? '#d1fae5' : 
+                                        conditionsValidationStatus === 'invalid' ? '#fee2e2' : '#e2e8f0'}`
+                  }}>
+                    {validationMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Slack Configuration */}
+          {/* Slack Integration */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+              💬 Slack Integration
+            </label>
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.75rem',
+              padding: '1rem',
+              background: '#f8fafc',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <input
+                type="url"
+                value={slackWebhook}
+                onChange={(e) => setSlackWebhook(e.target.value)}
+                placeholder="https://hooks.slack.com/services/..."
+                style={{
+                  flex: 1,
+                  padding: '1rem',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '10px',
+                  fontSize: '1rem',
+                  background: 'white',
+                  transition: 'border-color 0.2s ease',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <button
+                onClick={handleSlackTest}
+                className="secondary-button"
+                style={{ 
+                  padding: '1rem 1.5rem',
+                  borderRadius: '10px',
+                  fontWeight: '600',
+                  fontSize: '0.95rem'
+                }}
+              >
+                🧪 Test
+              </button>
+            </div>
+            {slackConnected ? (
+              <div style={{ 
+                marginTop: '0.75rem', 
+                padding: '0.75rem', 
+                background: 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)',
+                borderRadius: '8px',
+                border: '1px solid #b7dfbb',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: '1.1rem' }}>✅</span>
+                <span style={{ color: '#155724', fontWeight: '500' }}>Slack connection verified!</span>
+              </div>
+            ) : slackWebhook ? (
+              <div style={{ 
+                marginTop: '0.75rem', 
+                padding: '0.75rem', 
+                background: '#fef3c7', 
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                color: '#92400e'
+              }}>
+                💡 <strong>Tip:</strong> Click "Test" to verify your webhook URL works correctly.
+              </div>
+            ) : (
+              <div style={{ 
+                marginTop: '0.75rem', 
+                padding: '0.75rem', 
+                background: '#f0f9ff', 
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                color: '#0369a1'
+              }}>
+                🔗 <strong>How to get a webhook URL:</strong> In Slack, go to Apps → Incoming Webhooks → Add to Slack
+              </div>
+            )}
+          </div>
+
+          {/* Monitoring Settings */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
+                ⏱️ Check Frequency
+              </label>
+              <select
+                value={frequencyMinutes}
+                onChange={(e) => setFrequencyMinutes(parseInt(e.target.value))}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '10px',
+                  fontSize: '1rem',
+                  background: 'white',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.2s ease',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              >
+                <option value={0.5}>Every 30 seconds</option>
+                <option value={1}>Every 1 minute</option>
+                <option value={5}>Every 5 minutes</option>
+                <option value={10}>Every 10 minutes</option>
+                <option value={15}>Every 15 minutes</option>
+                <option value={30}>Every 30 minutes</option>
+                <option value={60}>Every hour</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
+                👥 Slack Mention (optional)
+              </label>
+              <input
+                type="text"
+                value={userMention}
+                onChange={(e) => setUserMention(e.target.value)}
+                placeholder="@channel or @username"
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '10px',
+                  fontSize: '1rem',
+                  background: 'white',
+                  transition: 'border-color 0.2s ease',
+                  outline: 'none'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <small style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem', display: 'block' }}>
+                e.g., @channel, @here, @username
+              </small>
+            </div>
+          </div>
+
+          {/* Start Monitoring Button */}
+          <button
+            onClick={handleStartMonitoring}
+            disabled={!canStartMonitoring()}
+            className="primary-button"
+            style={{ 
+              width: '100%', 
+              padding: '1.25rem',
+              fontSize: '1.2rem',
+              fontWeight: '700',
+              borderRadius: '12px',
+              background: canStartMonitoring() ? 
+                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 
+                '#e2e8f0',
+              border: 'none',
+              color: canStartMonitoring() ? 'white' : '#94a3b8',
+              cursor: canStartMonitoring() ? 'pointer' : 'not-allowed',
+              transition: 'all 0.3s ease',
+              boxShadow: canStartMonitoring() ? 
+                '0 4px 15px rgba(102, 126, 234, 0.4)' : 
+                'none',
+              transform: 'translateY(0px)'
+            }}
+            onMouseEnter={(e) => {
+              if (canStartMonitoring()) {
+                const target = e.target as HTMLButtonElement;
+                target.style.transform = 'translateY(-2px)';
+                target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (canStartMonitoring()) {
+                const target = e.target as HTMLButtonElement;
+                target.style.transform = 'translateY(0px)';
+                target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+              }
+            }}
+          >
+            🚀 Start Monitoring
+          </button>
+          
+          {!canStartMonitoring() && (
+            <div style={{ 
+              marginTop: '1rem', 
+              padding: '1rem', 
+              background: '#fef3c7', 
+              borderRadius: '10px',
+              border: '1px solid #fbbf24',
+              textAlign: 'center'
+            }}>
+              <div style={{ color: '#92400e', fontWeight: '500', marginBottom: '0.25rem' }}>
+                ⚠️ Required fields missing
+              </div>
+              <div style={{ color: '#92400e', fontSize: '0.9rem' }}>
+                Please select a spreadsheet, add monitoring rules, and provide Slack webhook URL
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Current Monitoring Jobs */}
+        <div className="step-card">
+          <h3>📋 Current Monitoring Jobs</h3>
+          {monitoringJobs.length === 0 ? (
+            <p style={{ color: '#666', fontSize: '0.9rem', textAlign: 'center', padding: '2rem' }}>
+              No monitoring jobs active. Create your first monitor above! 👆
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gap: '1rem' }}>
+              {monitoringJobs.map(job => (
+                <div key={job.id} style={{ 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '0.75rem', 
+                  background: job.isActive ? '#f8f9fa' : '#fff5f5',
+                  overflow: 'hidden'
+                }}>
+                  {/* Main Job Header */}
+                  <div style={{ padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <strong style={{ color: '#333', fontSize: '1.1rem' }}>
+                        📊 {job.spreadsheetName || job.sheetId}
+                      </strong>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span style={{
+                          background: job.isActive ? '#d4edda' : '#f8d7da',
+                          color: job.isActive ? '#155724' : '#721c24',
+                          padding: '0.3rem 0.75rem',
+                          borderRadius: '1rem',
+                          fontSize: '0.85rem',
+                          fontWeight: '500'
+                        }}>
+                          {job.isActive ? '🟢 Active' : '🔴 Inactive'}
+                        </span>
+                        <button
+                          onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
+                          style={{
+                            background: '#f1f5f9',
+                            color: '#475569',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '0.5rem',
+                            padding: '0.4rem 0.75rem',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {expandedJobId === job.id ? '▼ Hide Details' : '▶ Show Details'}
+                        </button>
+                        <button
+                          onClick={() => stopMonitoringJob(job.id)}
+                          style={{
+                            background: '#fee2e2',
+                            color: '#991b1b',
+                            border: '1px solid #fecaca',
+                            borderRadius: '0.5rem',
+                            padding: '0.4rem 0.75rem',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            fontWeight: '500'
+                          }}
+                        >
+                          🛑 Stop
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Quick Summary */}
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                      gap: '0.75rem', 
+                      fontSize: '0.9rem',
+                      color: '#64748b'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1rem' }}>📍</span>
+                        <span><strong>Range:</strong> {job.cellRange}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1rem' }}>⏱️</span>
+                        <span><strong>Frequency:</strong> {job.frequencyMinutes}min</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1rem' }}>⚙️</span>
+                        <span><strong>Conditions:</strong> {job.conditions?.length || 0} rules</span>
+                      </div>
+                    </div>
+                    
+                    {job.lastChecked && (
+                      <div style={{ 
+                        fontSize: '0.8rem', 
+                        color: '#94a3b8', 
+                        marginTop: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}>
+                        <span style={{ fontSize: '0.9rem' }}>🕒</span>
+                        <span>Last checked: {new Date(job.lastChecked).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expandable Details */}
+                  {expandedJobId === job.id && (
+                    <div style={{ 
+                      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                      padding: '1.5rem',
+                      borderTop: '1px solid #e2e8f0'
+                    }}>
+                      <h4 style={{ margin: '0 0 1rem 0', color: '#374151', fontSize: '1rem' }}>📋 Job Details</h4>
+                      
+                      {/* Job Configuration */}
+                      <div style={{ display: 'grid', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                          gap: '1rem'
+                        }}>
+                          <div style={{ 
+                            background: 'white', 
+                            padding: '1rem', 
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e5e7eb'
+                          }}>
+                            <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.25rem' }}>Job ID</div>
+                            <div style={{ fontSize: '0.9rem', fontFamily: 'monospace', color: '#374151' }}>{job.id}</div>
+                          </div>
+                          
+                          <div style={{ 
+                            background: 'white', 
+                            padding: '1rem', 
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e5e7eb'
+                          }}>
+                            <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.25rem' }}>Sheet ID</div>
+                            <div style={{ fontSize: '0.9rem', fontFamily: 'monospace', color: '#374151' }}>{job.sheetId}</div>
+                          </div>
+                          
+                          <div style={{ 
+                            background: 'white', 
+                            padding: '1rem', 
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e5e7eb'
+                          }}>
+                            <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.25rem' }}>Created</div>
+                            <div style={{ fontSize: '0.9rem', color: '#374151' }}>
+                              {job.createdAt ? new Date(job.createdAt).toLocaleString() : 'Unknown'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Monitoring Conditions */}
+                      <div style={{ marginBottom: '1.5rem' }}>
+                        <h5 style={{ margin: '0 0 0.75rem 0', color: '#374151', fontSize: '0.95rem' }}>🎯 Alert Conditions</h5>
+                        {job.conditions && job.conditions.length > 0 ? (
+                          <div style={{ display: 'grid', gap: '0.5rem' }}>
+                            {job.conditions.map((condition: any, index: number) => (
+                              <div key={index} style={{
+                                background: 'white',
+                                padding: '0.75rem',
+                                borderRadius: '0.5rem',
+                                border: '1px solid #e5e7eb',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                fontSize: '0.9rem'
+                              }}>
+                                <span style={{ 
+                                  background: '#dbeafe', 
+                                  color: '#1e40af', 
+                                  padding: '0.25rem 0.5rem', 
+                                  borderRadius: '0.25rem',
+                                  fontSize: '0.8rem',
+                                  fontWeight: '500'
+                                }}>
+                                  Rule {index + 1}
+                                </span>
+                                <span>
+                                  {condition.cellRef ? `If cell ${condition.cellRef} ` : 'If value '}
+                                  <strong>{condition.operator}</strong>
+                                  {condition.value && condition.operator !== 'changed' ? ` ${condition.value}` : ''}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{
+                            background: 'white',
+                            padding: '1rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e5e7eb',
+                            color: '#6b7280',
+                            fontSize: '0.9rem',
+                            textAlign: 'center'
+                          }}>
+                            No specific conditions - alerts on any change
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Slack Configuration */}
+                      <div>
+                        <h5 style={{ margin: '0 0 0.75rem 0', color: '#374151', fontSize: '0.95rem' }}>💬 Slack Configuration</h5>
+                        <div style={{ 
+                          background: 'white', 
+                          padding: '1rem', 
+                          borderRadius: '0.5rem',
+                          border: '1px solid #e5e7eb'
+                        }}>
+                          <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.5rem' }}>Webhook URL</div>
+                          <div style={{ fontSize: '0.9rem', fontFamily: 'monospace', color: '#374151', marginBottom: '0.75rem' }}>
+                            {job.webhookUrl ? `${job.webhookUrl.substring(0, 50)}...` : 'Not configured'}
+                          </div>
+                          {job.userMention && (
+                            <>
+                              <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.25rem' }}>User Mention</div>
+                              <div style={{ fontSize: '0.9rem', color: '#374151' }}>{job.userMention}</div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderMonitoringConfig = () => (
+    <div className="dashboard-container">
+      <div className="header">
+        <h1>⚙️ Configure Monitoring</h1>
+        <div className="user-info">
+          <button 
+            onClick={() => setShowMonitoringConfig(false)}
+            className="secondary-button"
+          >
+            ← Back to Setup
+          </button>
+          <span>👤 {userEmail}</span>
+        </div>
+      </div>
+
+      <div className="dashboard-content">
+        <div className="step-card">
+          <h3>📊 New Monitoring Job</h3>
+          <p style={{ marginBottom: '1.5rem', opacity: '0.8' }}>
+            Configure monitoring for a specific Google Sheet. You can monitor cell changes and set up custom alert conditions.
+          </p>
+
+          {/* Spreadsheet Selection */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              📋 Select Spreadsheet
+            </label>
+            <select
+              value={selectedSheetForMonitoring?.id || ''}
+              onChange={(e) => {
+                const sheet = googleSheets.find(s => s.id === e.target.value);
+                setSelectedSheetForMonitoring(sheet || null);
+              }}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.5rem',
+                fontSize: '1rem'
+              }}
+            >
+              <option value="">Choose a spreadsheet...</option>
+              {googleSheets.map(sheet => (
+                <option key={sheet.id} value={sheet.id}>
+                  {sheet.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Cell Range */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              📍 Cell Range to Monitor
+            </label>
+            <input
+              type="text"
+              value={cellRange}
+              onChange={(e) => setCellRange(e.target.value)}
+              placeholder="e.g., A1, B2:D5, A:A"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.5rem',
+                fontSize: '1rem'
+              }}
+            />
+            <div style={{ fontSize: '0.8rem', opacity: '0.7', marginTop: '0.25rem' }}>
+              Examples: A1 (single cell), A1:C3 (range), A:A (entire column), 1:1 (entire row)
+            </div>
+          </div>
+
+          {/* Frequency */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              ⏱️ Check Frequency (minutes)
+            </label>
+            <select
+              value={frequencyMinutes}
+              onChange={(e) => setFrequencyMinutes(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.5rem',
+                fontSize: '1rem'
+              }}
+            >
+              <option value={1}>Every 1 minute</option>
+              <option value={5}>Every 5 minutes</option>
+              <option value={10}>Every 10 minutes</option>
+              <option value={15}>Every 15 minutes</option>
+              <option value={30}>Every 30 minutes</option>
+              <option value={60}>Every hour</option>
+            </select>
+          </div>
+
+          {/* User Mention */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              👤 Slack User Mention (optional)
+            </label>
+            <input
+              type="text"
+              value={userMention}
+              onChange={(e) => setUserMention(e.target.value)}
+              placeholder="@username or @channel"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.5rem',
+                fontSize: '1rem'
+              }}
+            />
+            <div style={{ fontSize: '0.8rem', opacity: '0.7', marginTop: '0.25rem' }}>
+              Optional: Mention a specific user or channel in Slack notifications
+            </div>
+          </div>
+
+          {/* Alert Conditions */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <label style={{ fontWeight: 'bold' }}>
+                🚨 Alert Conditions
+              </label>
+              <button
+                onClick={addCondition}
+                className="secondary-button"
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}
+              >
+                + Add Condition
+              </button>
+            </div>
+            
+            {conditions.length === 0 ? (
+              <div style={{ 
+                padding: '1rem', 
+                background: '#f8fafc', 
+                borderRadius: '0.5rem', 
+                border: '1px solid #e2e8f0',
+                fontSize: '0.9rem',
+                opacity: '0.7',
+                textAlign: 'center'
+              }}>
+                No conditions set - will alert on any value change
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {conditions.map(condition => (
+                  <div key={condition.id} style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1fr 1fr 2fr auto',
+                    gap: '0.5rem',
+                    alignItems: 'center',
+                    padding: '0.75rem',
+                    background: '#f8fafc',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <select
+                      value={condition.operator}
+                      onChange={(e) => updateCondition(condition.id, 'operator', e.target.value)}
+                      style={{ padding: '0.5rem', borderRadius: '0.25rem', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="changed">Any Change</option>
+                      <option value=">">Greater Than</option>
+                      <option value="<">Less Than</option>
+                      <option value="=">Equals</option>
+                      <option value="!=">Not Equals</option>
+                      <option value="contains">Contains</option>
+                    </select>
+                    
+                    <input
+                      type="text"
+                      value={condition.value}
+                      onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
+                      placeholder={condition.operator === 'changed' ? 'N/A' : 'Value...'}
+                      disabled={condition.operator === 'changed'}
+                      style={{ 
+                        padding: '0.5rem', 
+                        borderRadius: '0.25rem', 
+                        border: '1px solid #cbd5e1',
+                        background: condition.operator === 'changed' ? '#f1f5f9' : 'white'
+                      }}
+                    />
+                    
+                    <input
+                      type="text"
+                      value={condition.description}
+                      onChange={(e) => updateCondition(condition.id, 'description', e.target.value)}
+                      placeholder="Description (optional)"
+                      style={{ padding: '0.5rem', borderRadius: '0.25rem', border: '1px solid #cbd5e1' }}
+                    />
+                    
+                    <button
+                      onClick={() => removeCondition(condition.id)}
+                      style={{ 
+                        padding: '0.5rem', 
+                        background: '#fee2e2', 
+                        color: '#991b1b', 
+                        border: 'none', 
+                        borderRadius: '0.25rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setShowMonitoringConfig(false)}
+              className="secondary-button"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={createMonitoringJob}
+              className="primary-button"
+              disabled={!selectedSheetForMonitoring || !cellRange.trim()}
+            >
+              Create Monitoring Job
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const canStartMonitoring = () => {
+    const hasSpreadsheet = useManualUrl ? 
+      manualSpreadsheetUrl.trim().length > 0 : 
+      selectedSheetForMonitoring !== null;
+    
+    const hasValidConditions = conditions.length > 0 && 
+      conditions.every(c => c.cellRef && c.cellRef.trim().length > 0);
+    
+    return hasSpreadsheet && 
+           hasValidConditions && 
+           slackWebhook.trim().length > 0;
+  };
+
+  const extractSheetIdFromUrl = (url: string): string | null => {
+    try {
+      const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleStartMonitoring = async () => {
+    try {
+      // New validation for condition-based monitoring
+      if (!selectedSheetForMonitoring && !useManualUrl) {
+        alert('Please select a spreadsheet');
+        return;
+      }
+      
+      if (conditions.length === 0) {
+        alert('Please add at least one monitoring rule');
+        return;
+      }
+      
+      if (!slackWebhook.trim()) {
+        alert('Please provide a Slack webhook URL');
+        return;
+      }
+
+      const sheetId = useManualUrl ? 
+        extractSheetIdFromUrl(manualSpreadsheetUrl) : 
+        selectedSheetForMonitoring.id;
+
+      if (!sheetId) {
+        alert('Invalid spreadsheet URL. Please check the format.');
+        return;
+      }
+
+      // Create a monitoring range that encompasses all condition ranges
+      const allCellRefs = conditions.map(c => c.cellRef).filter(ref => ref && ref.trim());
+      if (allCellRefs.length === 0) {
+        alert('Please specify cell references in your monitoring rules');
+        return;
+      }
+      
+      // For now, use a broad range that covers most common use cases
+      // TODO: Calculate the actual bounding box of all condition ranges
+      const primaryRange = "A1:Z1000"; // Broad range to ensure we capture all condition data
+      const fullRange = selectedSheetTab ? `${selectedSheetTab}!${primaryRange}` : primaryRange;
+
+      // Create the monitoring job
+      const response = await fetch('http://localhost:3001/api/monitoring/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          sheetId: sheetId,
+          cellRange: fullRange,
+          webhookUrl: slackWebhook,
+          frequencyMinutes: frequencyMinutes,
+          userMention: userMention,
+          conditions: conditions,
+          authToken: localStorage.getItem('datapingo_auth_token') // Include auth token for authentication
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        alert(`✅ Monitoring started successfully!\n\nJob ID: ${data.jobId}\nMonitoring: ${useManualUrl ? 'Manual URL' : selectedSheetForMonitoring.name}\nRules: ${conditions.length} monitoring rule(s)\nFrequency: Every ${frequencyMinutes} minute(s)`);
+        
+        // Reset form
+        setSelectedSheetForMonitoring(null);
+        setManualSpreadsheetUrl('');
+        setSelectedSheetTab('');
+        setConditions([]);
+        setUserMention('');
+        
+        // Reload monitoring jobs
+        loadMonitoringJobs();
+      } else {
+        alert('❌ Failed to start monitoring: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Start monitoring error:', error);
+      alert('❌ Network error starting monitoring');
+    }
+  };
+
+  const stopMonitoringJob = async (jobId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/monitoring/stop/${jobId}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('✅ Monitoring job stopped successfully');
+        loadMonitoringJobs(); // Reload the jobs list
+      } else {
+        alert('❌ Failed to stop monitoring: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Stop monitoring error:', error);
+      alert('❌ Network error stopping monitoring');
+    }
+  };
+
+  // Main render logic
+  const renderContent = () => {
+    if (showMonitoringConfig) {
+      return renderMonitoringConfig();
+    }
+    
+    switch (authStatus) {
+      case 'pending':
+        return renderPendingApproval();
+      case 'approved':
+        return renderApprovedUser();
+      case 'requesting':
+      case 'idle':
+      default:
+        return renderAuthForm();
+    }
   };
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>📊 DataPingo Sheets Connector</h1>
-        <div className="tagline">🚀 Set it once, forget it forever!</div>
-        <p>Connect Google Sheets to Slack for real-time notifications</p>
-      </header>
-
-      <main className="app-main">
-        {/* Global Active Monitoring Jobs - Always visible at top */}
-        <GlobalActiveJobs />
-        
-        <div className="setup-flow">
-          {/* Step 1: Google Sheets Connection */}
-          <GoogleSheetsConnector 
-            isConnected={state.isGoogleConnected}
-            currentSpreadsheet={state.currentSpreadsheet}
-            onConnect={(spreadsheet, allSpreadsheets = []) => updateState({ 
-              isGoogleConnected: true, 
-              currentSpreadsheet: spreadsheet,
-              availableSpreadsheets: allSpreadsheets
-            })}
-          />
-
-          {/* Step 2: Configure Monitoring */}
-          {state.isGoogleConnected && (
-            <SpreadsheetConfig
-              isConfigured={state.isConfigured}
-              spreadsheets={state.availableSpreadsheets}
-              onConfigure={(config) => updateState({
-                isConfigured: true,
-                spreadsheetConfig: config,
-                currentSpreadsheet: {
-                  id: config.spreadsheetId,
-                  name: config.spreadsheetName,
-                  sheets: [config.sheetName],
-                  range: config.range,
-                  conditions: config.conditions
-                }
-              })}
-            />
-          )}
-
-          {/* Step 3: Slack Connection */}
-          {state.isGoogleConnected && state.isConfigured && (
-            <SlackConnector 
-              isConnected={state.isSlackConnected}
-              webhookUrl={state.webhookUrl}
-              onConnect={(webhook) => updateState({ 
-                isSlackConnected: true, 
-                webhookUrl: webhook 
-              })}
-            />
-          )}
-
-          {/* Step 4: Monitoring Setup */}
-          {state.isGoogleConnected && state.isConfigured && state.isSlackConnected && state.spreadsheetConfig && (
-            <MonitoringDashboard 
-              spreadsheet={state.currentSpreadsheet}
-              webhookUrl={state.webhookUrl}
-              config={state.spreadsheetConfig}
-            />
-          )}
-
-          {/* Success Message */}
-          {state.isGoogleConnected && state.isConfigured && state.isSlackConnected && (
-            <div className="success-message fade-in">
-              <h4>🎉 Setup Complete!</h4>
-              <p>Your DataPingo Sheets Connector is now active and monitoring your spreadsheet for changes.</p>
-              <ul>
-                <li>✅ Google Sheets connected and authorized</li>
-                <li>✅ Monitoring configured ({state.spreadsheetConfig?.conditions.length || 0} conditions)</li>
-                <li>✅ Slack notifications configured</li>
-                <li>✅ Real-time monitoring active</li>
-                <li>✅ All changes will be instantly reported to your Slack channel</li>
-              </ul>
-            </div>
-          )}
-        </div>
-      </main>
-
-      <footer className="app-footer">
-        <p>🚀 Set it once, forget it forever! | DataPingo Sheets Connector</p>
-      </footer>
+      {renderContent()}
     </div>
   );
 };

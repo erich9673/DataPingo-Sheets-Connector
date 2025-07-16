@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Debug - DataPingo</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px; 
+            background: white;
+        }
+        .section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { background: #0056b3; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 4px; 
+            overflow-x: auto; 
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Frontend Debug Tool</h1>
+    
+    <div class="section">
+        <h3>🖥️ Frontend Status Check</h3>
+        <button onclick="checkFrontendStatus()">Check Frontend Status</button>
+        <div id="frontendStatus"></div>
+    </div>
+
+    <div class="section">
+        <h3>📊 Main App Preview</h3>
+        <p>This should show your main application:</p>
+        <iframe src="http://localhost:3002" id="appFrame"></iframe>
+    </div>
+
+    <div class="section">
+        <h3>🔍 Direct File Tests</h3>
+        <button onclick="testBundleJs()">Test bundle.js</button>
+        <button onclick="testIndexHtml()">Test index.html</button>
+        <div id="fileTests"></div>
+    </div>
+
+    <div class="section">
+        <h3>🛠️ Quick Actions</h3>
+        <button onclick="clearCache()">Clear Browser Cache</button>
+        <button onclick="forceRefresh()">Force Refresh App</button>
+        <button onclick="openInNewTab()">Open App in New Tab</button>
+    </div>
+
+    <script>
+        async function checkFrontendStatus() {
+            const resultDiv = document.getElementById('frontendStatus');
+            resultDiv.innerHTML = '<p class="info">🔄 Checking frontend status...</p>';
+            
+            try {
+                // Test if frontend server is responding
+                const response = await fetch('http://localhost:3002/');
+                const html = await response.text();
+                
+                let status = '';
+                if (response.ok) {
+                    status += '<p class="success">✅ Frontend server is responding</p>';
+                    status += `<p><strong>Status:</strong> ${response.status}</p>`;
+                    
+                    // Check if HTML contains expected elements
+                    if (html.includes('<div id="root">')) {
+                        status += '<p class="success">✅ HTML contains root div</p>';
+                    } else {
+                        status += '<p class="error">❌ HTML missing root div</p>';
+                    }
+                    
+                    if (html.includes('bundle.js')) {
+                        status += '<p class="success">✅ HTML references bundle.js</p>';
+                    } else {
+                        status += '<p class="error">❌ HTML missing bundle.js reference</p>';
+                    }
+                    
+                    // Show first part of HTML
+                    status += '<h4>HTML Preview:</h4>';
+                    status += '<pre>' + html.substring(0, 500) + '...</pre>';
+                } else {
+                    status += `<p class="error">❌ Frontend server error: ${response.status}</p>`;
+                }
+                
+                resultDiv.innerHTML = status;
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Network Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testBundleJs() {
+            const resultDiv = document.getElementById('fileTests');
+            resultDiv.innerHTML = '<p class="info">🔄 Testing bundle.js...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:3002/bundle.js');
+                
+                if (response.ok) {
+                    const jsContent = await response.text();
+                    const size = (jsContent.length / 1024).toFixed(2);
+                    
+                    let result = `<p class="success">✅ bundle.js loaded successfully</p>`;
+                    result += `<p><strong>Size:</strong> ${size} KB</p>`;
+                    
+                    // Check for React content
+                    if (jsContent.includes('React')) {
+                        result += '<p class="success">✅ Contains React code</p>';
+                    } else {
+                        result += '<p class="error">❌ No React code found</p>';
+                    }
+                    
+                    if (jsContent.includes('DataPingo')) {
+                        result += '<p class="success">✅ Contains DataPingo code</p>';
+                    } else {
+                        result += '<p class="error">❌ No DataPingo code found</p>';
+                    }
+                    
+                    resultDiv.innerHTML = result;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">❌ bundle.js error: ${response.status}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ bundle.js Network Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testIndexHtml() {
+            const resultDiv = document.getElementById('fileTests');
+            resultDiv.innerHTML = '<p class="info">🔄 Testing index.html...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:3002/index.html');
+                
+                if (response.ok) {
+                    const htmlContent = await response.text();
+                    
+                    let result = `<p class="success">✅ index.html loaded successfully</p>`;
+                    result += '<h4>Full HTML Content:</h4>';
+                    result += '<pre>' + htmlContent + '</pre>';
+                    
+                    resultDiv.innerHTML = result;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">❌ index.html error: ${response.status}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ index.html Network Error: ${error.message}</p>`;
+            }
+        }
+
+        function clearCache() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                        registration.unregister();
+                    }
+                });
+            }
+            
+            // Clear various caches
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => {
+                        caches.delete(name);
+                    });
+                });
+            }
+            
+            // Clear localStorage and sessionStorage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            alert('✅ Cache cleared! Try refreshing the app now.');
+        }
+
+        function forceRefresh() {
+            const frame = document.getElementById('appFrame');
+            frame.src = frame.src + '?t=' + Date.now();
+        }
+
+        function openInNewTab() {
+            window.open('http://localhost:3002', '_blank');
+        }
+
+        // Auto-check status on load
+        window.onload = function() {
+            checkFrontendStatus();
+        };
+    </script>
+</body>
+</html>

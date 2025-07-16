@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_ENDPOINTS } from '../config/api';
 
 interface SlackConnectorProps {
   isConnected: boolean;
@@ -25,7 +26,7 @@ const SlackConnector: React.FC<SlackConnectorProps> = ({
     setTestResult('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/slack/test', {
+      const response = await fetch(API_ENDPOINTS.slackTest, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ webhookUrl: inputUrl })

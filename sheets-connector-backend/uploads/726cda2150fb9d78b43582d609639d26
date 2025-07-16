@@ -1,0 +1,9 @@
+Product,Price,Stock,Status,Last_Updated
+Laptop,999.99,50,In Stock,2024-01-15
+Mouse,29.99,100,In Stock,2024-01-15
+Keyboard,79.99,25,Low Stock,2024-01-15
+Monitor,299.99,15,In Stock,2024-01-15
+Headphones,159.99,5,Critical,2024-01-15
+Webcam,89.99,0,Out of Stock,2024-01-15
+Tablet,499.99,30,In Stock,2024-01-15
+Speaker,79.99,8,Critical,2024-01-15

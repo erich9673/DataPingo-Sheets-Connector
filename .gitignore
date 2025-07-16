@@ -11,6 +11,23 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*-old.*
+*-backup.*
+*-test.*
+*-broken.*
+
 # Build outputs
 dist/
 build/
@@ -32,14 +49,7 @@ logs
 *.sqlite
 *.sqlite3
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# OS generated files (already covered above in macOS section)
 
 # IDE files
 .vscode/

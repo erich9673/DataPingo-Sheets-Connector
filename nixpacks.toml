@@ -1,6 +1,0 @@
-# Simple Nixpacks configuration
-[build]
-cmd = "npm run build"
-
-[start]
-cmd = "node server.js"

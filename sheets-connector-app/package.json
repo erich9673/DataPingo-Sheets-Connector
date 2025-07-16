@@ -6,10 +6,11 @@
   "scripts": {
     "start": "npx http-server dist -p 3002 -o -c-1",
     "dev": "npm run build && npm start",
-    "build": "npx webpack --mode production",
-    "build:dev": "npx webpack --mode development",
+    "build": "npx webpack --mode production && ./copy-logos.sh",
+    "build:dev": "npx webpack --mode development && ./copy-logos.sh",
     "clean": "rm -rf dist",
     "rebuild": "npm run clean && npm run build",
+    "copy-logos": "./copy-logos.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -17,16 +18,16 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "@types/node": "^20.0.0",
+    "css-loader": "^6.8.0",
+    "html-webpack-plugin": "^5.5.0",
+    "http-server": "^14.1.1",
+    "style-loader": "^3.3.0",
+    "ts-loader": "^9.4.0",
     "typescript": "^5.2.2",
     "webpack": "^5.88.0",
-    "webpack-cli": "^5.1.0",
-    "ts-loader": "^9.4.0",
-    "html-webpack-plugin": "^5.5.0",
-    "css-loader": "^6.8.0",
-    "style-loader": "^3.3.0",
-    "http-server": "^14.1.1"
+    "webpack-cli": "^5.1.0"
   }
 }

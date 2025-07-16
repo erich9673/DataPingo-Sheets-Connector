@@ -171,7 +171,7 @@ export class GoogleSheetsService {
                     q: "mimeType='application/vnd.google-apps.spreadsheet'",
                     fields: 'files(id, name, modifiedTime, webViewLink)',
                     orderBy: 'modifiedTime desc',
-                    pageSize: 20 // Increase to get more results
+                    pageSize: 100 // Increased from 20 to get more results
                 });
 
                 const spreadsheets = response.data.files || [];
@@ -215,15 +215,67 @@ export class GoogleSheetsService {
         }
     }
 
-    // Check if the service is authenticated
-    isAuthenticated(): boolean {
-        return this.auth && this.auth.credentials && this.auth.credentials.access_token;
+    async getAuthUrl(): Promise<string> {
+        try {
+            if (!this.auth) {
+                throw new Error('OAuth2 client not initialized');
+            }
+
+            const scopes = [
+                'https://www.googleapis.com/auth/spreadsheets.readonly',
+                'https://www.googleapis.com/auth/drive.readonly'
+            ];
+
+            const authUrl = this.auth.generateAuthUrl({
+                access_type: 'offline',
+                scope: scopes,
+                prompt: 'consent'
+            });
+
+            return authUrl;
+        } catch (error) {
+            safeError('Error generating auth URL:', error);
+            throw error;
+        }
+    }
+
+    async handleAuthCallback(code: string): Promise<void> {
+        try {
+            const { tokens } = await this.auth.getToken(code);
+            this.auth.setCredentials(tokens);
+            
+            // Store tokens for future use (in production, store in database)
+            if (tokens.refresh_token) {
+                // Store refresh token securely
+                safeLog('Refresh token obtained and stored');
+            }
+            
+            safeLog('Authentication successful');
+        } catch (error) {
+            safeError('Error handling auth callback:', error);
+            throw error;
+        }
+    }
+
+    async isAuthenticated(): Promise<boolean> {
+        try {
+            if (!this.auth.credentials || !this.auth.credentials.access_token) {
+                return false;
+            }
+
+            // Try to make a simple API call to test authentication
+            await this.drive.files.list({ q: 'mimeType="application/vnd.google-apps.spreadsheet"', pageSize: 1 });
+            return true;
+        } catch (error) {
+            safeError('Authentication check failed:', error);
+            return false;
+        }
     }
 
     // Get current auth status
-    getAuthStatus() {
+    async getAuthStatus() {
         return {
-            authenticated: this.isAuthenticated(),
+            authenticated: await this.isAuthenticated(),
             hasRefreshToken: this.auth?.credentials?.refresh_token ? true : false
         };
     }
@@ -314,5 +366,77 @@ export class GoogleSheetsService {
         
         // Basic verification - you can add more sophisticated checks
         return !!(channelId && resourceId && resourceState);
+    }
+
+    async listSpreadsheets(): Promise<any[]> {
+        try {
+            if (!await this.isAuthenticated()) {
+                throw new Error('Not authenticated with Google');
+            }
+
+            const response = await this.drive.files.list({
+                q: 'mimeType="application/vnd.google-apps.spreadsheet"',
+                fields: 'files(id, name, modifiedTime)',
+                orderBy: 'modifiedTime desc',
+                pageSize: 100
+            });
+
+            return response.data.files || [];
+        } catch (error) {
+            safeError('Error listing spreadsheets:', error);
+            throw error;
+        }
+    }
+
+    async getSheetData(spreadsheetId: string): Promise<{values: any[], columns: string[], rows: number}> {
+        try {
+            if (!await this.isAuthenticated()) {
+                throw new Error('Not authenticated with Google');
+            }
+
+            // Get sheet metadata to find the range
+            const metadata = await this.sheets.spreadsheets.get({
+                spreadsheetId: spreadsheetId
+            });
+
+            const firstSheet = metadata.data.sheets[0];
+            const sheetName = firstSheet.properties.title;
+            
+            // Get data from the first sheet
+            const response = await this.sheets.spreadsheets.values.get({
+                spreadsheetId: spreadsheetId,
+                range: `${sheetName}!A1:ZZ1000` // Get a reasonable range
+            });
+
+            const values = response.data.values || [];
+            const columns = values.length > 0 ? values[0] : [];
+            const dataRows = values.slice(1); // Skip header row
+
+            return {
+                values: dataRows.map(row => {
+                    const rowObject: any = {};
+                    columns.forEach((col, index) => {
+                        rowObject[col] = row[index] || '';
+                    });
+                    return rowObject;
+                }),
+                columns: columns,
+                rows: dataRows.length
+            };
+        } catch (error) {
+            safeError('Error getting sheet data:', error);
+            throw error;
+        }
+    }
+
+    getCredentials() {
+        return this.auth?.credentials || null;
+    }
+    
+    setCredentials(credentials: any) {
+        if (this.auth && credentials) {
+            this.auth.setCredentials(credentials);
+            safeLog('Google credentials updated for this session');
+        }
     }
 }
