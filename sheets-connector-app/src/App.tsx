@@ -453,66 +453,12 @@ const App: React.FC = () => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="logo-section">
-          <div className="primary-brand">
-            <img 
-              src="/datapingo-logo.png" 
-              alt="DataPingo" 
-              className="company-logo-main"
-              onLoad={() => console.log('DataPingo logo loaded successfully')}
-              onError={(e) => {
-                console.error('DataPingo logo failed to load, trying JPG fallback');
-                console.log('Attempted to load:', e.currentTarget.src);
-                // Try JPG fallback first
-                if (e.currentTarget.src.endsWith('.png')) {
-                  e.currentTarget.src = '/datapingo-logo.jpg';
-                  return;
-                }
-                // If both fail, show fallback emoji
-                e.currentTarget.style.display = 'none';
-                const fallback = document.createElement('div');
-                fallback.textContent = '🏢 DataPingo';
-                fallback.style.fontSize = '2.5rem';
-                fallback.style.fontWeight = 'bold';
-                fallback.style.display = 'flex';
-                fallback.style.alignItems = 'center';
-                e.currentTarget.parentNode?.insertBefore(fallback, e.currentTarget);
-              }}
-            />
-          </div>
-          
-          <div className="product-brand">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <img 
-                src="/sheets-connector-logo-simple.jpg" 
-                alt="Sheets Connector" 
-                className="product-logo-simple"
-                style={{ 
-                  width: '40px', 
-                  height: '40px', 
-                  borderRadius: '8px',
-                  flexShrink: 0
-                }}
-                onLoad={() => console.log('Sheets Connector simple logo loaded successfully')}
-                onError={(e) => {
-                  console.error('Sheets Connector simple logo failed to load');
-                  console.log('Attempted to load:', e.currentTarget.src);
-                  // Show fallback emoji instead
-                  e.currentTarget.style.display = 'none';
-                  const fallback = document.createElement('div');
-                  fallback.textContent = '📊';
-                  fallback.style.fontSize = '2.5rem';
-                  fallback.style.display = 'flex';
-                  fallback.style.alignItems = 'center';
-                  e.currentTarget.parentNode?.insertBefore(fallback, e.currentTarget);
-                }}
-              />
-              <h2 style={{ 
-                margin: 0, 
-                fontSize: '1.5rem'  /* Reduced from default 2.5rem by 40% */
-              }}>Sheets Connector for Slack</h2>
+          <div className="brand-header">
+            <div className="unified-brand">
+              <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="unified-logo" />
+              <h1 className="login-title">DataPingo Sheets Connector for Slack</h1>
             </div>
           </div>
-          
           <p>Real-time Google Sheets monitoring with intelligent Slack notifications</p>
         </div>
 
@@ -546,12 +492,12 @@ const App: React.FC = () => {
         </form>
 
         <div className="info-section">
-          <h3>✨ Features</h3>
+          <h3>Features</h3>
           <ul>
-            <li>📊 Monitor Google Sheets in real-time</li>
-            <li>🔔 Get Slack notifications on changes</li>
-            <li>⚡ Set custom alert conditions</li>
-            <li>📈 Track multiple spreadsheets</li>
+            <li><img src="/chart.jpg" alt="Monitor" className="feature-icon" />Monitor Google Sheets in real-time</li>
+            <li><img src="/lightning.jpg" alt="Notifications" className="feature-icon" />Get Slack notifications on changes</li>
+            <li><img src="/tools.jpg" alt="Conditions" className="feature-icon" />Set custom alert conditions</li>
+            <li><img src="/chart.jpg" alt="Track" className="feature-icon" />Track multiple spreadsheets</li>
           </ul>
         </div>
       </div>
@@ -562,13 +508,16 @@ const App: React.FC = () => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="pending-section">
-          <h2>⏳ Approval Pending</h2>
+          <div className="pending-icon">
+            <img src="/tools.jpg" alt="Processing" className="status-icon" />
+          </div>
+          <h2>Approval Pending</h2>
           <p>Your access request has been submitted for <strong>{userEmail}</strong></p>
           <p>Please wait for an administrator to approve your request.</p>
           
           <div className="admin-info">
             <p><strong>For Admins:</strong></p>
-            <p>Review and approve requests at: <a href="http://localhost:3001/admin.html" target="_blank">Admin Dashboard</a></p>
+            <p>Review and approve requests in the admin panel</p>
           </div>
 
           <button 
@@ -589,7 +538,10 @@ const App: React.FC = () => {
   const renderApprovedUser = () => (
     <div className="dashboard-container">
       <div className="header">
-        <h1>📊 Spreadsheet Monitoring</h1>
+        <div className="header-brand">
+          <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="header-unified-logo" />
+          <h1 className="header-title">Spreadsheet Monitoring</h1>
+        </div>
         <div className="user-info">
           <span>👤 {userEmail}</span>
           <button 
@@ -600,7 +552,7 @@ const App: React.FC = () => {
               setAuthStatus('idle');
               setGoogleAuthStatus('idle');
             }}
-            className="logout-button"
+            className="datapingo-button secondary"
           >
             Logout
           </button>
@@ -615,13 +567,13 @@ const App: React.FC = () => {
         )}
 
         {/* Main Monitoring Setup Card */}
-        <div className="step-card" style={{ marginBottom: '2rem' }}>
+        <div className="step-card" style={{ marginBottom: '1.5rem' }}>
           <h3>🚀 Set Up New Monitor</h3>
 
           {/* Google Authentication Status - Moved to Top */}
-          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>🔗 Google Sheets Connection</span>
+          <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>🔗 Google Sheets Connection</span>
               {googleAuthStatus === 'connected' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ color: 'var(--success-color)', fontSize: '0.9rem', fontWeight: '500' }}>✅ Connected</span>
@@ -663,17 +615,17 @@ const App: React.FC = () => {
           </div>
 
           {/* Spreadsheet Selection */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
               📋 Select Spreadsheet
             </label>
             
             {/* Elegant Toggle Switch */}
             <div style={{ 
-              marginBottom: '1.5rem',
+              marginBottom: '1rem',
               background: '#f8fafc',
               padding: '0.5rem',
-              borderRadius: '12px',
+              borderRadius: '8px',
               border: '1px solid #e2e8f0',
               display: 'flex',
               position: 'relative'
@@ -735,10 +687,10 @@ const App: React.FC = () => {
                   disabled={googleAuthStatus !== 'connected'}
                   style={{
                     width: '100%',
-                    padding: '1rem',
+                    padding: '0.75rem',
                     border: '2px solid #e2e8f0',
-                    borderRadius: '12px',
-                    fontSize: '1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
                     background: googleAuthStatus !== 'connected' ? '#f8fafc' : 'white',
                     cursor: googleAuthStatus !== 'connected' ? 'not-allowed' : 'pointer',
                     transition: 'border-color 0.2s ease',
@@ -874,23 +826,12 @@ const App: React.FC = () => {
           </div>
 
           {/* Unified: What to Monitor */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
               🎯 What to Monitor
             </label>
-            <div style={{ padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-              {conditions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem', background: 'white', borderRadius: '8px', border: '2px dashed #cbd5e1' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>�</div>
-                  <p style={{ color: '#64748b', fontSize: '1rem', margin: '0 0 1rem 0', fontWeight: '500' }}>
-                    Add monitoring rules to get started
-                  </p>
-                  <p style={{ color: '#94a3b8', fontSize: '0.9rem', margin: 0 }}>
-                    Each rule defines a cell/range to watch and when to alert
-                  </p>
-                </div>
-              ) : (
-                conditions.map((condition, index) => (
+            <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              {conditions.map((condition, index) => (
                   <div key={index} style={{ 
                     display: 'grid', 
                     gridTemplateColumns: '1.5fr 1fr 1fr auto',
@@ -996,7 +937,7 @@ const App: React.FC = () => {
                     </button>
                   </div>
                 ))
-              )}
+              }
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button
@@ -1078,16 +1019,16 @@ const App: React.FC = () => {
 
           {/* Slack Configuration */}
           {/* Slack Integration */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '1rem', fontWeight: 'bold', fontSize: '1.1rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
               💬 Slack Integration
             </label>
             <div style={{ 
               display: 'flex', 
-              gap: '0.75rem',
-              padding: '1rem',
+              gap: '0.5rem',
+              padding: '0.75rem',
               background: '#f8fafc',
-              borderRadius: '12px',
+              borderRadius: '8px',
               border: '1px solid #e2e8f0'
             }}>
               <input
@@ -1110,7 +1051,7 @@ const App: React.FC = () => {
               />
               <button
                 onClick={handleSlackTest}
-                className="secondary-button"
+                className="datapingo-button accent"
                 style={{ 
                   padding: '1rem 1.5rem',
                   borderRadius: '10px',
@@ -1161,9 +1102,9 @@ const App: React.FC = () => {
           </div>
 
           {/* Monitoring Settings */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', fontSize: '0.95rem' }}>
                 ⏱️ Check Frequency
               </label>
               <select
@@ -1171,10 +1112,10 @@ const App: React.FC = () => {
                 onChange={(e) => setFrequencyMinutes(parseInt(e.target.value))}
                 style={{
                   width: '100%',
-                  padding: '1rem',
+                  padding: '0.75rem',
                   border: '2px solid #e2e8f0',
-                  borderRadius: '10px',
-                  fontSize: '1rem',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
                   background: 'white',
                   cursor: 'pointer',
                   transition: 'border-color 0.2s ease',
@@ -1194,7 +1135,7 @@ const App: React.FC = () => {
             </div>
             
             <div>
-              <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', fontSize: '0.95rem' }}>
                 👥 Slack Mention (optional)
               </label>
               <input
@@ -1204,10 +1145,10 @@ const App: React.FC = () => {
                 placeholder="@channel or @username"
                 style={{
                   width: '100%',
-                  padding: '1rem',
+                  padding: '0.75rem',
                   border: '2px solid #e2e8f0',
-                  borderRadius: '10px',
-                  fontSize: '1rem',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
                   background: 'white',
                   transition: 'border-color 0.2s ease',
                   outline: 'none'
@@ -1261,24 +1202,6 @@ const App: React.FC = () => {
           >
             🚀 Start Monitoring
           </button>
-          
-          {!canStartMonitoring() && (
-            <div style={{ 
-              marginTop: '1rem', 
-              padding: '1rem', 
-              background: '#fef3c7', 
-              borderRadius: '10px',
-              border: '1px solid #fbbf24',
-              textAlign: 'center'
-            }}>
-              <div style={{ color: '#92400e', fontWeight: '500', marginBottom: '0.25rem' }}>
-                ⚠️ Required fields missing
-              </div>
-              <div style={{ color: '#92400e', fontSize: '0.9rem' }}>
-                Please select a spreadsheet, add monitoring rules, and provide Slack webhook URL
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Current Monitoring Jobs */}
