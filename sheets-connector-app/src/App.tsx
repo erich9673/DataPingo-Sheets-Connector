@@ -540,6 +540,14 @@ const App: React.FC = () => {
             <li><img src="/chart.jpg" alt="Track" className="feature-icon" />Track multiple spreadsheets</li>
           </ul>
         </div>
+
+        <div className="footer-links">
+          <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+          <span className="separator">•</span>
+          <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+          <span className="separator">•</span>
+          <a href="/support" target="_blank" rel="noopener noreferrer">Support</a>
+        </div>
       </div>
     </div>
   );
