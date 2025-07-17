@@ -527,7 +527,7 @@ const App: React.FC = () => {
             className="submit-button"
             disabled={authStatus === 'requesting'}
           >
-            {authStatus === 'requesting' ? 'Requesting Access...' : 'Request Access'}
+            {authStatus === 'requesting' ? 'Getting Started...' : 'Get Started'}
           </button>
         </form>
 
