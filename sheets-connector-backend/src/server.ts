@@ -18,7 +18,7 @@ import { safeLog, safeError } from './utils/logger';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.BACKEND_PORT || process.env.PORT || 3001;
 
 // Auto-approval configuration
 let AUTO_APPROVE_USERS = process.env.AUTO_APPROVE_USERS === 'true' || false;
