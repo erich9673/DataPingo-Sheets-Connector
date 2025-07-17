@@ -1077,27 +1077,49 @@ const App: React.FC = () => {
                 <span style={{ fontSize: '1.1rem' }}>✅</span>
                 <span style={{ color: '#155724', fontWeight: '500' }}>Slack connection verified!</span>
               </div>
-            ) : slackWebhook ? (
-              <div style={{ 
-                marginTop: '0.75rem', 
-                padding: '0.75rem', 
-                background: '#fef3c7', 
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                color: '#92400e'
-              }}>
-                💡 <strong>Tip:</strong> Click "Test" to verify your webhook URL works correctly.
-              </div>
             ) : (
-              <div style={{ 
-                marginTop: '0.75rem', 
-                padding: '0.75rem', 
-                background: '#f0f9ff', 
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                color: '#0369a1'
-              }}>
-                🔗 <strong>How to get a webhook URL:</strong> In Slack, go to Apps → Incoming Webhooks → Add to Slack
+              <div className="help-text" style={{ marginTop: '0.75rem' }}>
+                <details>
+                  <summary>🤔 How to get a Slack Webhook URL?</summary>
+                  <div className="help-content">
+                    <h4>📋 Step-by-Step Guide:</h4>
+                    <ol>
+                      <li>
+                        <strong>Go to Slack Apps:</strong>
+                        <br />Visit <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">api.slack.com/apps</a> and sign in to your Slack workspace
+                      </li>
+                      <li>
+                        <strong>Create or Select App:</strong>
+                        <br />Click "Create New App" → "From scratch" → Name it "DataPingo Sheets Connector"
+                      </li>
+                      <li>
+                        <strong>Enable Incoming Webhooks:</strong>
+                        <br />In your app settings, go to "Incoming Webhooks" and toggle "Activate Incoming Webhooks" to ON
+                      </li>
+                      <li>
+                        <strong>Add Webhook to Workspace:</strong>
+                        <br />Click "Add New Webhook to Workspace" and choose the channel where you want notifications
+                      </li>
+                      <li>
+                        <strong>Copy Webhook URL:</strong>
+                        <br />Copy the webhook URL that starts with <code>https://hooks.slack.com/services/...</code>
+                      </li>
+                    </ol>
+                    
+                    <div className="help-note">
+                      <strong>� Pro Tip:</strong> Create a dedicated channel like <code>#sheets-alerts</code> for your notifications to keep them organized!
+                    </div>
+                    
+                    <div className="help-links">
+                      <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer" className="help-link">
+                        📖 Official Slack Documentation
+                      </a>
+                      <a href="https://slack.com/help/articles/115005265063-Incoming-webhooks-for-Slack" target="_blank" rel="noopener noreferrer" className="help-link">
+                        🎥 Slack Help Guide
+                      </a>
+                    </div>
+                  </div>
+                </details>
               </div>
             )}
           </div>
