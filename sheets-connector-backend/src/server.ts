@@ -223,6 +223,39 @@ app.get('/installed', (req, res) => {
     `);
 });
 
+// Google OAuth callback - handle both GET (from Google redirect) and POST (from frontend)
+app.get('/api/auth/google/callback', async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            return res.status(400).json({ success: false, error: 'Authorization code required' });
+        }
+
+        const result = await googleSheetsService.setAuthCode(code as string);
+        
+        if (result.success) {
+            // Generate auth token for frontend authentication
+            const authToken = uuidv4();
+            
+            // Store credentials for this session/token
+            const credentials = googleSheetsService.getCredentials();
+            if (credentials) {
+                // In a real app, store these securely in a database
+                // For now, we'll use a simple in-memory store
+                safeLog('Storing credentials for auth token:', authToken);
+            }
+            
+            // Redirect back to frontend with success
+            res.redirect(`/?auth=success&token=${authToken}`);
+        } else {
+            res.redirect('/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
+        }
+    } catch (error) {
+        safeError('Google OAuth callback error:', error);
+        res.redirect('/?auth=error&message=' + encodeURIComponent('Authentication failed'));
+    }
+});
+
 app.post('/api/auth/google/callback', async (req, res) => {
     try {
         const { code } = req.body;
