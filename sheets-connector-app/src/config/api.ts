@@ -11,6 +11,17 @@ export const API_BASE_URL = isRailwayProduction
 
 export const IS_PRODUCTION = isRailwayProduction;
 
+// Debug logging for Railway
+if (typeof window !== 'undefined') {
+  console.log('🔧 API Configuration Debug:', {
+    hostname: window.location.hostname,
+    isRailwayProduction,
+    isLocalhost,
+    API_BASE_URL,
+    IS_PRODUCTION
+  });
+}
+
 // API Endpoints
 export const API_ENDPOINTS = {
   // Health
