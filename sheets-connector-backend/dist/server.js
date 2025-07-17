@@ -60,9 +60,10 @@ let AUTO_APPROVE_USERS = process.env.AUTO_APPROVE_USERS === 'true' || false;
 // Middleware
 app.use((0, cors_1.default)({
     origin: [
-        'http://localhost:3002',
-        'http://127.0.0.1:3002',
-        'https://web-production-aafd.up.railway.app',
+        'http://localhost:3002', // Local development
+        'http://127.0.0.1:3002', // Local development
+        'https://web-production-aafd.up.railway.app', // Old Railway URL
+        'https://datapingo-sheets-connector-production.up.railway.app', // Current Railway URL
         /\.railway\.app$/ // Allow any Railway subdomain
     ],
     credentials: true,
@@ -365,9 +366,18 @@ app.get('/auth/callback', async (req, res) => {
                                 \`;
                                 // Store auth token and redirect
                                 const authToken = data.authToken;
-                                const baseUrl = window.location.origin.includes('localhost') 
-                                    ? 'http://localhost:3002' 
-                                    : window.location.origin;
+                                
+                                // Determine the correct frontend URL
+                                let baseUrl;
+                                if (window.location.hostname === 'localhost') {
+                                    baseUrl = 'http://localhost:3002';
+                                } else if (window.location.hostname.includes('railway.app')) {
+                                    // For Railway, use the same domain (frontend served from same domain)
+                                    baseUrl = window.location.origin;
+                                } else {
+                                    baseUrl = window.location.origin;
+                                }
+                                
                                 const redirectUrl = authToken 
                                     ? \`\${baseUrl}?authToken=\${authToken}\`
                                     : \`\${baseUrl}?auth=success\`;
@@ -384,9 +394,14 @@ app.get('/auth/callback', async (req, res) => {
                             }
                         })
                         .catch(error => {
-                            const baseUrl = window.location.origin.includes('localhost') 
-                                ? 'http://localhost:3002' 
-                                : window.location.origin;
+                            // Determine the correct frontend URL for error redirect
+                            let baseUrl;
+                            if (window.location.hostname === 'localhost') {
+                                baseUrl = 'http://localhost:3002';
+                            } else {
+                                baseUrl = window.location.origin;
+                            }
+                            
                             document.body.innerHTML = \`
                                 <h2>❌ Error</h2>
                                 <p>Failed to submit authorization: \${error.message}</p>
@@ -933,10 +948,21 @@ app.post('/api/auth/logout', (req, res) => {
 app.post('/api/monitoring/start', async (req, res) => {
     try {
         const { sheetId, cellRange, webhookUrl, frequencyMinutes, userMention, conditions, fileId } = req.body;
+        // Enhanced debugging for auth token
+        const authToken = req.query.authToken || req.body.authToken;
+        (0, logger_1.safeLog)('🔍 Monitoring start request received:', {
+            hasSheetId: !!sheetId,
+            hasFileId: !!fileId,
+            authTokenSource: req.query.authToken ? 'query' : req.body.authToken ? 'body' : 'none',
+            authTokenPresent: !!authToken,
+            authTokenLength: authToken ? authToken.length : 0,
+            totalStoredTokens: authTokens.size,
+            requestHeaders: Object.keys(req.headers),
+            hasCredentials: req.headers.cookie ? 'yes' : 'no'
+        });
         // Get credentials for Google Sheets monitoring
         let userCredentials = null;
         if (!fileId) { // Only for Google Sheets, not uploaded files
-            const authToken = req.query.authToken || req.body.authToken;
             (0, logger_1.safeLog)(`🔍 Monitoring start - Auth token received: ${authToken ? authToken.substring(0, 8) + '...' : 'none'}`);
             (0, logger_1.safeLog)(`🔍 Total stored auth tokens: ${authTokens.size}`);
             if (authToken && authTokens.has(authToken)) {

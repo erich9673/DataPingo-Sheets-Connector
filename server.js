@@ -102,10 +102,11 @@ try {
       // CORS for API routes
       app.use('/api', cors({
         origin: [
-          'http://localhost:3002', 
-          'http://127.0.0.1:3002',
-          'https://web-production-aafd.up.railway.app',
-          /\.railway\.app$/
+          'http://localhost:3002',  // Local development
+          'http://127.0.0.1:3002',  // Local development
+          'https://web-production-aafd.up.railway.app',  // Old Railway URL
+          'https://datapingo-sheets-connector-production.up.railway.app',  // Current Railway URL
+          /\.railway\.app$/  // Any Railway domain
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
