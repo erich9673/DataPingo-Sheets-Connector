@@ -1,0 +1,14 @@
+[phases.setup]
+cmds = ["echo '🚂 Setting up DataPingo Sheets Connector for Railway...'"]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "npm run build"
+]
+
+[phases.build]
+cmds = ["echo '✅ Build completed'"]
+
+[start]
+cmd = "node server.js"
