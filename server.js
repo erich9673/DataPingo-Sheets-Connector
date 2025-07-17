@@ -2,6 +2,7 @@
 console.log('🚂 Starting DataPingo Sheets Connector on Railway...');
 console.log('📍 Working directory:', process.cwd());
 console.log('🔧 Environment:', process.env.NODE_ENV);
+console.log('📂 Directory contents:', require('fs').readdirSync(process.cwd()));
 
 // Railway-specific port validation
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,7 @@ try {
   
   if (fs.existsSync(frontendPath)) {
     console.log('✅ Frontend dist found, setting up combined server...');
+    console.log('📁 Frontend dist contents:', fs.readdirSync(frontendPath));
     
     // Create Express app to serve both frontend and backend
     const app = express();
@@ -47,6 +49,7 @@ try {
     
     if (fs.existsSync(backendPath)) {
       console.log('✅ Backend found, integrating API routes...');
+      console.log('📁 Backend dist contents:', fs.readdirSync(path.dirname(backendPath)));
       
       // Since the backend server.ts creates its own app, we need to proxy the API calls
       // Start backend on a different port and proxy to it
