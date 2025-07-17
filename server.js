@@ -39,6 +39,15 @@ try {
     // Create Express app to serve both frontend and backend
     const app = express();
     
+    // Simple test endpoint to verify server.js is running
+    app.get('/test-server-js', (req, res) => {
+      res.json({ 
+        message: 'server.js is running on Railway!', 
+        timestamp: new Date().toISOString(),
+        port: PORT 
+      });
+    });
+    
     // Serve frontend static files
     app.use(express.static(frontendPath));
     console.log('� Static files served from:', frontendPath);
