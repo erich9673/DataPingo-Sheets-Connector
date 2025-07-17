@@ -240,10 +240,23 @@ app.get('/api/auth/google/callback', async (req, res) => {
             
             // Store credentials for this session/token
             const credentials = googleSheetsService.getCredentials();
+            authTokens.set(authToken, {
+                timestamp: Date.now(),
+                authenticated: true,
+                hasRefreshToken: true,
+                googleCredentials: credentials
+            });
+            
             if (credentials) {
-                // In a real app, store these securely in a database
-                // For now, we'll use a simple in-memory store
-                safeLog('Storing credentials for auth token:', authToken);
+                safeLog(`Stored Google credentials for token: ${authToken.substring(0, 8)}...`);
+            }
+            
+            // Clean up old tokens (older than 24 hours)
+            const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+            for (const [token, data] of authTokens.entries()) {
+                if (data.timestamp < oneDayAgo) {
+                    authTokens.delete(token);
+                }
             }
             
             // Redirect back to frontend with success
