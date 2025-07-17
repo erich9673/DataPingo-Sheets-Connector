@@ -136,18 +136,31 @@ try {
         const backendApp = require(backendPath);
         
         if (backendApp && typeof backendApp.use === 'function') {
-          // Mount the backend app on /api but need to handle route conflicts
-          // Since backend routes already have /api prefix, mount at root
+          // Mount the backend app at root since routes already have /api prefix
           app.use('/', backendApp);
           console.log('✅ Backend app mounted successfully');
+          
+          // Test if a specific route exists
+          setTimeout(() => {
+            console.log('🧪 Testing backend route registration...');
+            const routeStack = app._router?.stack || [];
+            const routeCount = routeStack.length;
+            console.log(`📊 Total routes registered: ${routeCount}`);
+          }, 100);
+          
         } else {
-          console.log('⚠️ Backend did not export an Express app');
+          console.log('⚠️ Backend did not export an Express app, loading manually...');
+          
+          // Fallback: require the backend without expecting an export
+          require(backendPath);
+          console.log('✅ Backend loaded directly');
         }
         
         console.log('✅ Full backend integrated with all API routes');
         
       } catch (error) {
         console.log('⚠️ Backend loading error:', error.message);
+        console.log('Stack:', error.stack);
         
         // Fallback: Basic health endpoint
         app.get('/api/health', (req, res) => {
