@@ -1,6 +1,11 @@
 // API Configuration
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-export const IS_PRODUCTION = process.env.REACT_APP_ENVIRONMENT === 'production';
+const isDevelopment = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+export const API_BASE_URL = isDevelopment 
+  ? 'http://localhost:3001'  // Local development - backend on port 3001
+  : '';  // Production - same domain, proxied through /api
+
+export const IS_PRODUCTION = !isDevelopment;
 
 // API Endpoints
 export const API_ENDPOINTS = {
