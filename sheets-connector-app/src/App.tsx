@@ -44,14 +44,15 @@ const App: React.FC = () => {
     
     // Check for auth token in URL (from OAuth redirect)
     const urlParams = new URLSearchParams(window.location.search);
-    const authToken = urlParams.get('authToken');
+    const authToken = urlParams.get('authToken') || urlParams.get('token'); // Support both parameter names
     
     console.log('🔗 URL parameters check:', {
       hasAuthTokenParam: !!authToken,
       authTokenLength: authToken ? authToken.length : 0,
       authTokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null',
       fullURL: window.location.href,
-      searchParams: window.location.search
+      searchParams: window.location.search,
+      parameterUsed: urlParams.get('authToken') ? 'authToken' : urlParams.get('token') ? 'token' : 'none'
     });
     
     if (authToken) {

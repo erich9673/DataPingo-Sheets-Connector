@@ -247,7 +247,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
             }
             
             // Redirect back to frontend with success
-            res.redirect(`/?auth=success&token=${authToken}`);
+            res.redirect(`/?auth=success&authToken=${authToken}`);
         } else {
             res.redirect('/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
         }
