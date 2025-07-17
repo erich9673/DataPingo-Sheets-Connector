@@ -93,10 +93,13 @@ try {
       console.log('🔗 API routes (/api/*) proxied to backend on port 3001');
     }
     
-    // Catch-all handler: serve React app for client-side routing
+    // Catch-all handler: serve React app for client-side routing (but exclude API routes and our endpoints)
     app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api/')) {
+      // Only serve the React app for routes that aren't API endpoints or our custom endpoints
+      if (!req.path.startsWith('/api/') && !req.path.startsWith('/test-') && req.path !== '/health') {
         res.sendFile(path.join(frontendPath, 'index.html'));
+      } else {
+        res.status(404).json({ error: 'Endpoint not found', path: req.path });
       }
     });
     
