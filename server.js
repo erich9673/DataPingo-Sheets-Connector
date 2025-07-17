@@ -58,6 +58,23 @@ try {
       });
     });
     
+    // Debug endpoint accessible from the browser
+    app.get('/debug', (req, res) => {
+      const backendPath = path.join(__dirname, 'sheets-connector-backend', 'dist', 'server.js');
+      res.json({
+        status: 'Frontend server running',
+        port: PORT,
+        timestamp: new Date().toISOString(),
+        frontendPath: frontendPath,
+        frontendExists: fs.existsSync(frontendPath),
+        backendPath: backendPath,
+        backendExists: fs.existsSync(backendPath),
+        backendDir: fs.existsSync(path.dirname(backendPath)) ? fs.readdirSync(path.dirname(backendPath)) : 'Backend dir not found',
+        environment: process.env.NODE_ENV,
+        workingDir: process.cwd()
+      });
+    });
+    
     // Serve frontend static files
     app.use(express.static(frontendPath));
     console.log('� Static files served from:', frontendPath);
