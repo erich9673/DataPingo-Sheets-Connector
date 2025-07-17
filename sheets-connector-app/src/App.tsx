@@ -578,24 +578,26 @@ const App: React.FC = () => {
   const renderApprovedUser = () => (
     <div className="dashboard-container">
       <div className="header">
-        <div className="header-brand">
-          <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="header-unified-logo" />
-          <h1 className="header-title">Spreadsheet Monitoring</h1>
-        </div>
-        <div className="user-info">
-          <span>👤 {userEmail}</span>
-          <button 
-            onClick={() => {
-              localStorage.removeItem('datapingo_user_email');
-              localStorage.removeItem('datapingo_auth_token');
-              setUserEmail('');
-              setAuthStatus('idle');
-              setGoogleAuthStatus('idle');
-            }}
-            className="datapingo-button secondary"
-          >
-            Logout
-          </button>
+        <div className="header-content">
+          <div className="header-brand">
+            <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="header-unified-logo" />
+            <h1 className="header-title">Spreadsheet Monitoring</h1>
+          </div>
+          <div className="user-info">
+            <span>👤 {userEmail}</span>
+            <button 
+              onClick={() => {
+                localStorage.removeItem('datapingo_user_email');
+                localStorage.removeItem('datapingo_auth_token');
+                setUserEmail('');
+                setAuthStatus('idle');
+                setGoogleAuthStatus('idle');
+              }}
+              className="datapingo-button secondary"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1504,15 +1506,17 @@ const App: React.FC = () => {
   const renderMonitoringConfig = () => (
     <div className="dashboard-container">
       <div className="header">
-        <h1>⚙️ Configure Monitoring</h1>
-        <div className="user-info">
-          <button 
-            onClick={() => setShowMonitoringConfig(false)}
-            className="secondary-button"
-          >
-            ← Back to Setup
-          </button>
-          <span>👤 {userEmail}</span>
+        <div className="header-content">
+          <h1>⚙️ Configure Monitoring</h1>
+          <div className="user-info">
+            <button 
+              onClick={() => setShowMonitoringConfig(false)}
+              className="secondary-button"
+            >
+              ← Back to Setup
+            </button>
+            <span>👤 {userEmail}</span>
+          </div>
         </div>
       </div>
 
