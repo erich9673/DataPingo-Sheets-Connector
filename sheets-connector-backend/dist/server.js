@@ -365,9 +365,12 @@ app.get('/auth/callback', async (req, res) => {
                                 \`;
                                 // Store auth token and redirect
                                 const authToken = data.authToken;
+                                const baseUrl = window.location.origin.includes('localhost') 
+                                    ? 'http://localhost:3002' 
+                                    : window.location.origin;
                                 const redirectUrl = authToken 
-                                    ? \`http://localhost:3002?authToken=\${authToken}\`
-                                    : 'http://localhost:3002?auth=success';
+                                    ? \`\${baseUrl}?authToken=\${authToken}\`
+                                    : \`\${baseUrl}?auth=success\`;
                                     
                                 setTimeout(() => {
                                     window.location.href = redirectUrl;
@@ -381,10 +384,13 @@ app.get('/auth/callback', async (req, res) => {
                             }
                         })
                         .catch(error => {
+                            const baseUrl = window.location.origin.includes('localhost') 
+                                ? 'http://localhost:3002' 
+                                : window.location.origin;
                             document.body.innerHTML = \`
                                 <h2>❌ Error</h2>
                                 <p>Failed to submit authorization: \${error.message}</p>
-                                <p><a href="http://localhost:3002">Return to app to try again</a></p>
+                                <p><a href="\${baseUrl}">Return to app to try again</a></p>
                             \`;
                         });
                     </script>
@@ -399,7 +405,7 @@ app.get('/auth/callback', async (req, res) => {
                 <body>
                     <h2>❌ Error</h2>
                     <p>Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
-                    <p><a href="http://localhost:3002">Return to app</a></p>
+                    <p><a href="javascript:history.back()">Return to app</a></p>
                 </body>
             </html>
         `);

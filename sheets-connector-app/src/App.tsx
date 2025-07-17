@@ -347,6 +347,19 @@ const App: React.FC = () => {
     }
 
     try {
+      // Get and validate auth token
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      console.log('🔑 Auth token status for monitoring:', {
+        hasToken: !!authToken,
+        tokenLength: authToken ? authToken.length : 0,
+        tokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null'
+      });
+
+      if (!authToken) {
+        alert('❌ Authentication required. Please reconnect to Google Sheets first.');
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/monitoring/start`, {
         method: 'POST',
         headers: {
@@ -360,7 +373,7 @@ const App: React.FC = () => {
           frequencyMinutes: frequencyMinutes,
           userMention: userMention.trim(),
           conditions: conditions,
-          authToken: localStorage.getItem('datapingo_auth_token') // Include auth token for authentication
+          authToken: authToken // Include auth token for authentication
         })
       });
 
@@ -1760,6 +1773,19 @@ const App: React.FC = () => {
       const primaryRange = "A1:Z1000"; // Broad range to ensure we capture all condition data
       const fullRange = selectedSheetTab ? `${selectedSheetTab}!${primaryRange}` : primaryRange;
 
+      // Get and validate auth token
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      console.log('🔑 Auth token status:', {
+        hasToken: !!authToken,
+        tokenLength: authToken ? authToken.length : 0,
+        tokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null'
+      });
+
+      if (!authToken) {
+        alert('❌ Authentication required. Please reconnect to Google Sheets first.');
+        return;
+      }
+
       // Create the monitoring job
       const response = await fetch(`${API_BASE_URL}/api/monitoring/start`, {
         method: 'POST',
@@ -1774,7 +1800,7 @@ const App: React.FC = () => {
           frequencyMinutes: frequencyMinutes,
           userMention: userMention,
           conditions: conditions,
-          authToken: localStorage.getItem('datapingo_auth_token') // Include auth token for authentication
+          authToken: authToken // Include auth token for authentication
         })
       });
 
