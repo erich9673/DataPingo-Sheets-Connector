@@ -729,31 +729,6 @@ app.get('/api/debug/test-token-auth', async (req, res) => {
     }
 });
 
-// Debug endpoint to check current auth tokens
-app.get('/api/debug/auth-tokens', (req, res) => {
-    try {
-        const tokenInfo = Array.from(authTokens.entries()).map(([token, data]) => ({
-            tokenPreview: token.substring(0, 8) + '...',
-            timestamp: new Date(data.timestamp).toISOString(),
-            authenticated: data.authenticated,
-            hasRefreshToken: data.hasRefreshToken,
-            hasCredentials: !!data.googleCredentials,
-            age: Math.round((Date.now() - data.timestamp) / 1000 / 60) + ' minutes'
-        }));
-        
-        res.json({
-            success: true,
-            totalTokens: authTokens.size,
-            tokens: tokenInfo
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-
 // Google Sheets Operations
 app.get('/api/sheets/spreadsheets', async (req, res) => {
     try {
@@ -1820,3 +1795,10 @@ app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
         safeError('Failed to get sheet data:', error);
         res.status(500).json({
             success: false,
+            error: 'Failed to load sheet data'
+        });
+    }
+});
+
+// Export the app for integration with main server (must be at the end after all routes)
+module.exports = app;
