@@ -1157,12 +1157,21 @@ select:focus-visible {
   background: var(--card-background);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-color);
-  padding: 1rem 2rem;
+  padding: 1rem 0; /* Remove horizontal padding from header */
   display: flex;
-  justify-content: center; /* Center the content */
+  justify-content: center;
   align-items: center;
   box-shadow: var(--shadow-sm);
-  gap: 3rem; /* Add gap between left and right sections */
+}
+
+/* Header content container to match dashboard layout */
+.header-content {
+  width: 100%;
+  max-width: 1000px; /* Match dashboard-content max-width */
+  padding: 0 2rem; /* Match dashboard-content padding */
+  display: flex;
+  justify-content: space-between; /* Spread elements across the width */
+  align-items: center;
 }
 
 .step-card {
