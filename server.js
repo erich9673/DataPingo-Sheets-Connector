@@ -84,30 +84,38 @@ try {
     const backendPath = path.join(__dirname, 'sheets-connector-backend', 'dist', 'server.js');
     
     if (fs.existsSync(backendPath)) {
-      console.log('✅ Backend found, integrating API routes...');
+      console.log('✅ Backend found, starting backend server...');
       console.log('📁 Backend dist contents:', fs.readdirSync(path.dirname(backendPath)));
       
-      // Since the backend server.ts creates its own app, we need to proxy the API calls
-      // Start backend on a different port and proxy to it
-      const { spawn } = require('child_process');
+      // Start backend server directly (it will run on its own port)
+      setTimeout(() => {
+        console.log('🚀 Starting backend server...');
+        require(backendPath);
+      }, 1000);
       
-      // Start backend server on port 3001 (internal)
-      const backendProcess = spawn('node', [backendPath], {
-        env: { ...process.env, PORT: '3001' },
-        stdio: 'inherit'
-      });
-      
-      // Proxy API calls to backend
+      // Set up proxy to the backend
       const { createProxyMiddleware } = require('http-proxy-middleware');
       
-      // Proxy /api routes
-      app.use('/api', createProxyMiddleware({
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        logLevel: 'debug'
-      }));
+      // Wait a bit for backend to start, then set up proxy
+      setTimeout(() => {
+        console.log('🔗 Setting up API proxy...');
+        app.use('/api', createProxyMiddleware({
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          logLevel: 'debug',
+          onError: (err, req, res) => {
+            console.error('Proxy error:', err.message);
+            res.status(500).json({ error: 'Backend service unavailable' });
+          },
+          onProxyReq: (proxyReq, req, res) => {
+            console.log('🔄 Proxying request:', req.method, req.url);
+          }
+        }));
+        console.log('✅ API proxy configured for /api/* -> localhost:3001');
+      }, 2000);
       
-      console.log('🔗 API routes (/api/*) proxied to backend on port 3001');
+    } else {
+      console.log('❌ Backend not found at:', backendPath);
     }
     
     // Catch-all handler: serve React app for client-side routing (but exclude API routes and our endpoints)
