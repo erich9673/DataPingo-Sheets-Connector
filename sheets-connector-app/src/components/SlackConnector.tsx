@@ -96,13 +96,44 @@ const SlackConnector: React.FC<SlackConnectorProps> = ({
             <div className="help-text">
               <details>
                 <summary>🤔 How to get a Slack Webhook URL?</summary>
-                <ol>
-                  <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">api.slack.com/apps</a></li>
-                  <li>Create a new app or select an existing one</li>
-                  <li>Go to "Incoming Webhooks" and activate them</li>
-                  <li>Click "Add New Webhook to Workspace"</li>
-                  <li>Choose your channel and copy the webhook URL</li>
-                </ol>
+                <div className="help-content">
+                  <h4>📋 Step-by-Step Guide:</h4>
+                  <ol>
+                    <li>
+                      <strong>Go to Slack Apps:</strong>
+                      <br />Visit <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">api.slack.com/apps</a> and sign in to your Slack workspace
+                    </li>
+                    <li>
+                      <strong>Create or Select App:</strong>
+                      <br />Click "Create New App" → "From scratch" → Name it "DataPingo Sheets Connector"
+                    </li>
+                    <li>
+                      <strong>Enable Incoming Webhooks:</strong>
+                      <br />In your app settings, go to "Incoming Webhooks" and toggle "Activate Incoming Webhooks" to ON
+                    </li>
+                    <li>
+                      <strong>Add Webhook to Workspace:</strong>
+                      <br />Click "Add New Webhook to Workspace" and choose the channel where you want notifications
+                    </li>
+                    <li>
+                      <strong>Copy Webhook URL:</strong>
+                      <br />Copy the webhook URL that starts with <code>https://hooks.slack.com/services/...</code>
+                    </li>
+                  </ol>
+                  
+                  <div className="help-note">
+                    <strong>💡 Pro Tip:</strong> Create a dedicated channel like <code>#sheets-alerts</code> for your notifications to keep them organized!
+                  </div>
+                  
+                  <div className="help-links">
+                    <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer" className="help-link">
+                      📖 Official Slack Documentation
+                    </a>
+                    <a href="https://slack.com/help/articles/115005265063-Incoming-webhooks-for-Slack" target="_blank" rel="noopener noreferrer" className="help-link">
+                      🎥 Slack Help Guide
+                    </a>
+                  </div>
+                </div>
               </details>
             </div>
           </div>
