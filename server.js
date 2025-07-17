@@ -90,14 +90,7 @@ try {
         logLevel: 'debug'
       }));
       
-      // Proxy health endpoint directly
-      app.use('/health', createProxyMiddleware({
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        logLevel: 'debug'
-      }));
-      
-      console.log('🔗 API routes (/api/*) and health endpoint proxied to backend on port 3001');
+      console.log('🔗 API routes (/api/*) proxied to backend on port 3001');
     }
     
     // Catch-all handler: serve React app for client-side routing
