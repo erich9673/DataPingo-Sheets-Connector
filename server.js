@@ -125,14 +125,40 @@ try {
         }
       }));
       
-      // Basic health endpoint for the backend
-      app.get('/api/health', (req, res) => {
-        res.json({ 
-          status: 'healthy', 
-          timestamp: new Date().toISOString(),
-          source: 'integrated-backend'
+      // Load the full backend with all API routes
+      try {
+        console.log('📦 Loading full backend module...');
+        
+        // Set environment to prevent the backend from starting its own server
+        process.env.SKIP_SERVER_START = 'true';
+        
+        // Load the backend module and get the Express app
+        const backendApp = require(backendPath);
+        
+        if (backendApp && typeof backendApp.use === 'function') {
+          // Mount the backend app on /api but need to handle route conflicts
+          // Since backend routes already have /api prefix, mount at root
+          app.use('/', backendApp);
+          console.log('✅ Backend app mounted successfully');
+        } else {
+          console.log('⚠️ Backend did not export an Express app');
+        }
+        
+        console.log('✅ Full backend integrated with all API routes');
+        
+      } catch (error) {
+        console.log('⚠️ Backend loading error:', error.message);
+        
+        // Fallback: Basic health endpoint
+        app.get('/api/health', (req, res) => {
+          res.json({ 
+            status: 'healthy-fallback', 
+            timestamp: new Date().toISOString(),
+            source: 'fallback-backend',
+            error: error.message
+          });
         });
-      });
+      }
       
       console.log('✅ Backend middleware configured, API routes available');
       

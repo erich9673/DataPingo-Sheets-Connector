@@ -1313,12 +1313,16 @@ app.get('/sub-processors', (req, res) => {
 app.get('/beta', (req, res) => {
     res.sendFile(path_1.default.join(__dirname, '../public/beta.html'));
 });
-// Start server
-app.listen(PORT, () => {
-    (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
-    (0, logger_1.safeLog)(`📊 API Base URL: http://localhost:${PORT}/api`);
-    (0, logger_1.safeLog)(`🔍 Health Check: http://localhost:${PORT}/health`);
-});
+// Export the app for integration with main server
+module.exports = app;
+// Start server only if not being imported
+if (!process.env.SKIP_SERVER_START) {
+    app.listen(PORT, () => {
+        (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
+        (0, logger_1.safeLog)(`📊 API Base URL: http://localhost:${PORT}/api`);
+        (0, logger_1.safeLog)(`🔍 Health Check: http://localhost:${PORT}/health`);
+    });
+}
 // File Upload Endpoint
 app.post('/api/upload/spreadsheet', upload.single('file'), async (req, res) => {
     try {
