@@ -16,7 +16,7 @@ export const API_BASE_URL = (isRailwayProduction || forceRailwayMode)
 
 export const IS_PRODUCTION = isRailwayProduction || forceRailwayMode;
 
-// Debug logging for Railway (using alert to ensure it shows)
+// Debug logging for Railway
 if (typeof window !== 'undefined') {
   console.log('🔧 API Configuration Debug:', {
     hostname: window.location.hostname,
@@ -27,11 +27,6 @@ if (typeof window !== 'undefined') {
     API_BASE_URL,
     IS_PRODUCTION
   });
-  
-  // Emergency debug - use alert to ensure we see it
-  if (window.location.hostname.includes('railway.app')) {
-    alert(`API_BASE_URL: "${API_BASE_URL}" | isRailway: ${isRailwayProduction} | force: ${forceRailwayMode}`);
-  }
 }
 
 // API Endpoints

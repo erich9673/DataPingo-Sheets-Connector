@@ -1397,12 +1397,17 @@ app.get('/beta', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/beta.html'));
 });
 
-// Start server
-app.listen(PORT, () => {
-    safeLog(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
-    safeLog(`📊 API Base URL: http://localhost:${PORT}/api`);
-    safeLog(`🔍 Health Check: http://localhost:${PORT}/health`);
-});
+// Export the app for integration with main server
+module.exports = app;
+
+// Start server only if not being imported
+if (!process.env.SKIP_SERVER_START) {
+    app.listen(PORT, () => {
+        safeLog(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
+        safeLog(`📊 API Base URL: http://localhost:${PORT}/api`);
+        safeLog(`🔍 Health Check: http://localhost:${PORT}/health`);
+    });
+}
 
 // File Upload Endpoint
 app.post('/api/upload/spreadsheet', upload.single('file'), async (req, res) => {
