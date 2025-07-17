@@ -40,15 +40,28 @@ const App: React.FC = () => {
 
   // Simple auth check
   useEffect(() => {
+    console.log('🚀 App initialization - checking for auth token...');
+    
     // Check for auth token in URL (from OAuth redirect)
     const urlParams = new URLSearchParams(window.location.search);
     const authToken = urlParams.get('authToken');
     
+    console.log('🔗 URL parameters check:', {
+      hasAuthTokenParam: !!authToken,
+      authTokenLength: authToken ? authToken.length : 0,
+      authTokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null',
+      fullURL: window.location.href,
+      searchParams: window.location.search
+    });
+    
     if (authToken) {
       // Store auth token and clean URL
+      console.log('💾 Storing auth token from URL and cleaning URL...');
       localStorage.setItem('datapingo_auth_token', authToken);
       window.history.replaceState({}, document.title, window.location.pathname);
-      console.log('Auth token received and stored');
+      console.log('✅ Auth token received and stored from OAuth redirect');
+    } else {
+      console.log('ℹ️ No auth token in URL parameters');
     }
     
     const savedEmail = localStorage.getItem('datapingo_user_email');
@@ -62,28 +75,39 @@ const App: React.FC = () => {
 
   const checkGoogleAuthStatus = async () => {
     try {
-      console.log('Checking Google auth status...');
+      console.log('🔍 Checking Google auth status...');
       
       // First, try token-based authentication if we have a token
       const authToken = localStorage.getItem('datapingo_auth_token');
+      console.log('🎫 Auth token check:', {
+        hasToken: !!authToken,
+        tokenLength: authToken ? authToken.length : 0,
+        tokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null'
+      });
+      
       if (authToken) {
-        console.log('Found auth token, verifying...');
+        console.log('🔐 Found auth token, verifying with backend...');
         const tokenResponse = await fetch(`${API_BASE_URL}/api/auth/verify-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ authToken })
         });
+        
+        console.log('📡 Token verification response status:', tokenResponse.status);
         const tokenData = await tokenResponse.json();
+        console.log('📄 Token verification data:', tokenData);
         
         if (tokenData.success && tokenData.authenticated) {
-          console.log('Token verified, setting status and loading sheets...');
+          console.log('✅ Token verified successfully, setting status and loading sheets...');
           setGoogleAuthStatus('connected');
           await loadGoogleSheets();
           return;
         } else {
-          console.log('Token invalid, removing...');
+          console.log('❌ Token invalid, removing from localStorage...', tokenData);
           localStorage.removeItem('datapingo_auth_token');
         }
+      } else {
+        console.log('ℹ️ No auth token found in localStorage');
       }
       
       // Fallback to session-based authentication
@@ -1775,11 +1799,30 @@ const App: React.FC = () => {
 
       // Get and validate auth token
       const authToken = localStorage.getItem('datapingo_auth_token');
-      console.log('🔑 Auth token status:', {
+      
+      // Enhanced debugging for auth token
+      console.log('🔑 Detailed Auth Token Analysis:', {
         hasToken: !!authToken,
         tokenLength: authToken ? authToken.length : 0,
-        tokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null'
+        tokenPreview: authToken ? `${authToken.substring(0, 12)}...${authToken.substring(authToken.length - 4)}` : 'null',
+        tokenType: typeof authToken,
+        localStorageKeys: Object.keys(localStorage),
+        localStorageSize: Object.keys(localStorage).length,
+        googleAuthStatus: googleAuthStatus,
+        isConnected: googleAuthStatus === 'connected'
       });
+      
+      // Also check if we have other auth-related items in localStorage
+      const userEmail = localStorage.getItem('datapingo_user_email');
+      const allStorageItems: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          const value = localStorage.getItem(key);
+          allStorageItems[key] = value ? value.substring(0, 20) + '...' : 'null';
+        }
+      }
+      console.log('💾 All localStorage items:', allStorageItems);
 
       if (!authToken) {
         alert('❌ Authentication required. Please reconnect to Google Sheets first.');
