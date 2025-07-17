@@ -59,7 +59,12 @@ const PORT = process.env.PORT || 3001;
 let AUTO_APPROVE_USERS = process.env.AUTO_APPROVE_USERS === 'true' || false;
 // Middleware
 app.use((0, cors_1.default)({
-    origin: ['http://localhost:3002', 'http://127.0.0.1:3002'],
+    origin: [
+        'http://localhost:3002',
+        'http://127.0.0.1:3002',
+        'https://web-production-aafd.up.railway.app',
+        /\.railway\.app$/ // Allow any Railway subdomain
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -80,8 +85,6 @@ app.use(body_parser_1.default.json());
 app.use(body_parser_1.default.urlencoded({ extended: true }));
 // Serve static files from public directory
 app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
-// Serve frontend static files from the built app
-app.use(express_1.default.static(path_1.default.join(__dirname, '../../sheets-connector-app/dist')));
 // File upload configuration
 const upload = (0, multer_1.default)({
     dest: path_1.default.join(__dirname, '../uploads/'),
@@ -1558,6 +1561,9 @@ app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
         const data = await googleSheetsService.getSheetData(sheetId);
         res.json({
             success: true,
+            data: data.values,
+            columns: data.columns,
+            rows: data.rows
         });
     }
     catch (error) {
