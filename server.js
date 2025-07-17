@@ -84,37 +84,57 @@ try {
     const backendPath = path.join(__dirname, 'sheets-connector-backend', 'dist', 'server.js');
     
     if (fs.existsSync(backendPath)) {
-      console.log('✅ Backend found, starting backend server...');
+      console.log('✅ Backend found, integrating directly...');
       console.log('📁 Backend dist contents:', fs.readdirSync(path.dirname(backendPath)));
       
-      // Start backend server directly (it will run on its own port)
-      setTimeout(() => {
-        console.log('🚀 Starting backend server...');
-        // Set environment variable to use a different port
-        process.env.BACKEND_PORT = '3002';
-        require(backendPath);
-      }, 1000);
+      // Instead of spawning a separate process, let's run the backend logic directly
+      // First, set up the required middleware for the backend
+      console.log('� Setting up backend middleware...');
       
-      // Set up proxy to the backend
-      const { createProxyMiddleware } = require('http-proxy-middleware');
+      const cors = require('cors');
+      const session = require('express-session');
+      const bodyParser = require('body-parser');
       
-      // Wait a bit for backend to start, then set up proxy
-      setTimeout(() => {
-        console.log('🔗 Setting up API proxy...');
-        app.use('/api', createProxyMiddleware({
-          target: 'http://localhost:3002',
-          changeOrigin: true,
-          logLevel: 'debug',
-          onError: (err, req, res) => {
-            console.error('Proxy error:', err.message);
-            res.status(500).json({ error: 'Backend service unavailable' });
-          },
-          onProxyReq: (proxyReq, req, res) => {
-            console.log('🔄 Proxying request:', req.method, req.url);
-          }
-        }));
-        console.log('✅ API proxy configured for /api/* -> localhost:3002');
-      }, 2000);
+      // Add middleware that the backend needs
+      app.use(express.json({ limit: '50mb' }));
+      app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+      
+      // CORS for API routes
+      app.use('/api', cors({
+        origin: [
+          'http://localhost:3002', 
+          'http://127.0.0.1:3002',
+          'https://web-production-aafd.up.railway.app',
+          /\.railway\.app$/
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization']
+      }));
+      
+      // Session middleware for API routes
+      app.use('/api', session({
+        secret: process.env.SESSION_SECRET || 'datapingo-session-secret-' + Math.random(),
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+          secure: false,
+          httpOnly: true,
+          maxAge: 24 * 60 * 60 * 1000,
+          sameSite: 'lax'
+        }
+      }));
+      
+      // Basic health endpoint for the backend
+      app.get('/api/health', (req, res) => {
+        res.json({ 
+          status: 'healthy', 
+          timestamp: new Date().toISOString(),
+          source: 'integrated-backend'
+        });
+      });
+      
+      console.log('✅ Backend middleware configured, API routes available');
       
     } else {
       console.log('❌ Backend not found at:', backendPath);
@@ -135,7 +155,7 @@ try {
       console.log('🚀 DataPingo Sheets Connector running on Railway!');
       console.log('🌐 Port:', PORT);
       console.log('🎨 Frontend: served from dist folder');
-      console.log('⚡ Backend API: proxied to port 3002');
+      console.log('⚡ Backend API: integrated directly');
     });
     
   } else {
