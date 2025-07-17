@@ -44,7 +44,23 @@ try {
       res.json({ 
         message: 'server.js is running on Railway!', 
         timestamp: new Date().toISOString(),
-        port: PORT 
+        port: PORT,
+        frontendExists: fs.existsSync(frontendPath),
+        backendExists: fs.existsSync(path.join(__dirname, 'sheets-connector-backend', 'dist', 'server.js')),
+        workingDir: process.cwd(),
+        frontendPath: frontendPath
+      });
+    });
+    
+    // Debug endpoint to check environment
+    app.get('/debug-env', (req, res) => {
+      res.json({
+        env: process.env.NODE_ENV,
+        port: PORT,
+        cwd: process.cwd(),
+        files: fs.readdirSync(process.cwd()),
+        frontendExists: fs.existsSync(frontendPath),
+        backendExists: fs.existsSync(path.join(__dirname, 'sheets-connector-backend', 'dist', 'server.js'))
       });
     });
     
