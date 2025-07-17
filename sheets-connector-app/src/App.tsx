@@ -359,7 +359,8 @@ const App: React.FC = () => {
           webhookUrl: slackWebhook,
           frequencyMinutes: frequencyMinutes,
           userMention: userMention.trim(),
-          conditions: conditions
+          conditions: conditions,
+          authToken: localStorage.getItem('datapingo_auth_token') // Include auth token for authentication
         })
       });
 
