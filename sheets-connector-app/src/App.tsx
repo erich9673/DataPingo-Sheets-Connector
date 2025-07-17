@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './styles/App.css';
+import { API_BASE_URL } from './config/api';
 
 type AuthStatus = 'idle' | 'requesting' | 'pending' | 'approved' | 'denied';
 
@@ -67,7 +68,7 @@ const App: React.FC = () => {
       const authToken = localStorage.getItem('datapingo_auth_token');
       if (authToken) {
         console.log('Found auth token, verifying...');
-        const tokenResponse = await fetch('http://localhost:3001/api/auth/verify-token', {
+        const tokenResponse = await fetch(`${API_BASE_URL}/api/auth/verify-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ authToken })
@@ -86,7 +87,7 @@ const App: React.FC = () => {
       }
       
       // Fallback to session-based authentication
-      const response = await fetch('http://localhost:3001/api/auth/google-status', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/google-status`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -114,8 +115,8 @@ const App: React.FC = () => {
       // Get auth token from localStorage
       const authToken = localStorage.getItem('datapingo_auth_token');
       const url = authToken 
-        ? `http://localhost:3001/api/sheets/spreadsheets?authToken=${authToken}`
-        : 'http://localhost:3001/api/sheets/spreadsheets';
+        ? `${API_BASE_URL}/api/sheets/spreadsheets?authToken=${authToken}`
+        : `${API_BASE_URL}/api/sheets/spreadsheets`;
       
       // Try the spreadsheets endpoint first
       const response = await fetch(url, {
@@ -145,8 +146,8 @@ const App: React.FC = () => {
       
       const authToken = localStorage.getItem('datapingo_auth_token');
       const url = authToken 
-        ? `http://localhost:3001/api/sheets/${spreadsheetId}/info?authToken=${authToken}`
-        : `http://localhost:3001/api/sheets/${spreadsheetId}/info`;
+        ? `${API_BASE_URL}/api/sheets/${spreadsheetId}/info?authToken=${authToken}`
+        : `${API_BASE_URL}/api/sheets/${spreadsheetId}/info`;
       
       const response = await fetch(url, {
         credentials: 'include'
@@ -173,7 +174,7 @@ const App: React.FC = () => {
       setGoogleAuthStatus('connecting');
       setError('');
       
-      const response = await fetch('http://localhost:3001/api/auth/google/url', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/google/url`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -210,7 +211,7 @@ const App: React.FC = () => {
 
   const handleSlackTest = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/slack/test-connection', {
+      const response = await fetch(`${API_BASE_URL}/api/slack/test-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -286,8 +287,8 @@ const App: React.FC = () => {
               if (condition.cellRef) {
                 const fullRange = selectedSheetTab ? `${selectedSheetTab}!${condition.cellRef}` : condition.cellRef;
                 const url = authToken 
-                  ? `http://localhost:3001/api/sheets/${selectedSheetForMonitoring.id}/values/${encodeURIComponent(fullRange)}?authToken=${authToken}`
-                  : `http://localhost:3001/api/sheets/${selectedSheetForMonitoring.id}/values/${encodeURIComponent(fullRange)}`;
+                  ? `${API_BASE_URL}/api/sheets/${selectedSheetForMonitoring.id}/values/${encodeURIComponent(fullRange)}?authToken=${authToken}`
+                  : `${API_BASE_URL}/api/sheets/${selectedSheetForMonitoring.id}/values/${encodeURIComponent(fullRange)}`;
                   
                 const response = await fetch(url, { credentials: 'include' });
                 const data = await response.json();
@@ -324,7 +325,7 @@ const App: React.FC = () => {
   // Monitoring functions
   const loadMonitoringJobs = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/monitoring/jobs', {
+      const response = await fetch(`${API_BASE_URL}/api/monitoring/jobs`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -346,7 +347,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/monitoring/start', {
+      const response = await fetch(`${API_BASE_URL}/api/monitoring/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -420,7 +421,7 @@ const App: React.FC = () => {
     try {
       setAuthStatus('requesting');
       
-      const response = await fetch('http://localhost:3001/api/auth/request-access', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-access`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1737,7 +1738,7 @@ const App: React.FC = () => {
       const fullRange = selectedSheetTab ? `${selectedSheetTab}!${primaryRange}` : primaryRange;
 
       // Create the monitoring job
-      const response = await fetch('http://localhost:3001/api/monitoring/start', {
+      const response = await fetch(`${API_BASE_URL}/api/monitoring/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1779,7 +1780,7 @@ const App: React.FC = () => {
 
   const stopMonitoringJob = async (jobId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/monitoring/stop/${jobId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/monitoring/stop/${jobId}`, {
         method: 'POST',
         credentials: 'include'
       });
