@@ -1061,13 +1061,14 @@ select:focus-visible {
 .header-brand {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem; /* Increased gap slightly */
+  white-space: nowrap; /* Prevent wrapping */
 }
 
 .header-unified-logo {
-  height: 50px;
+  height: 45px; /* Slightly smaller */
   width: auto;
-  max-width: 200px;
+  max-width: 180px; /* Slightly smaller max width */
   object-fit: contain;
   border-radius: var(--radius);
 }
@@ -1095,12 +1096,13 @@ select:focus-visible {
 
 .header-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.4rem; /* Slightly smaller */
   font-weight: 600;
   background: linear-gradient(135deg, var(--datapingo-primary) 0%, var(--datapingo-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  line-height: 1.2; /* Tighter line height */
 }
 
 /* Feature Icons */
@@ -1155,11 +1157,12 @@ select:focus-visible {
   background: var(--card-background);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-color);
-  padding: 1rem 2rem; /* Reduced padding */
+  padding: 1rem 2rem;
   display: flex;
-  justify-content: space-between;
+  justify-content: center; /* Center the content */
   align-items: center;
   box-shadow: var(--shadow-sm);
+  gap: 3rem; /* Add gap between left and right sections */
 }
 
 .step-card {
@@ -1227,8 +1230,11 @@ select:focus-visible {
 
 /* Compact User Info */
 .user-info {
-  gap: 1rem; /* Reduced gap */
-  font-size: 0.9rem; /* Smaller font */
+  display: flex;
+  align-items: center;
+  gap: 1.5rem; /* Increased gap slightly for better spacing */
+  font-size: 0.95rem; /* Slightly larger font */
+  white-space: nowrap; /* Prevent wrapping */
 }
 
 .user-info span {
