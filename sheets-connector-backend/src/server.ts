@@ -1397,9 +1397,6 @@ app.get('/beta', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/beta.html'));
 });
 
-// Export the app for integration with main server
-module.exports = app;
-
 // Start server only if not being imported
 if (!process.env.SKIP_SERVER_START) {
     app.listen(PORT, () => {
@@ -1680,3 +1677,6 @@ app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
         });
     }
 });
+
+// Export the app for integration with main server (must be at the end after all routes)
+module.exports = app;
