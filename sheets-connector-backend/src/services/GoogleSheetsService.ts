@@ -439,4 +439,11 @@ export class GoogleSheetsService {
             safeLog('Google credentials updated for this session');
         }
     }
+    
+    clearCredentials() {
+        if (this.auth) {
+            this.auth.setCredentials({});
+            safeLog('Google credentials cleared');
+        }
+    }
 }
