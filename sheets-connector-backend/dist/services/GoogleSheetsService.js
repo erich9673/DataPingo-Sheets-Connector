@@ -380,5 +380,11 @@ class GoogleSheetsService {
             (0, logger_1.safeLog)('Google credentials updated for this session');
         }
     }
+    clearCredentials() {
+        if (this.auth) {
+            this.auth.setCredentials({});
+            (0, logger_1.safeLog)('Google credentials cleared');
+        }
+    }
 }
 exports.GoogleSheetsService = GoogleSheetsService;

@@ -586,12 +586,30 @@ const App: React.FC = () => {
           <div className="user-info">
             <span>👤 {userEmail}</span>
             <button 
-              onClick={() => {
+              onClick={async () => {
+                // Get auth token before clearing it
+                const authToken = localStorage.getItem('datapingo_auth_token');
+                
+                // Call backend logout to clear server-side credentials
+                try {
+                  const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ authToken })
+                  });
+                  const result = await response.json();
+                  console.log('🔓 Backend logout result:', result);
+                } catch (error) {
+                  console.log('⚠️ Backend logout failed (continuing with frontend logout):', error);
+                }
+                
+                // Clear frontend state
                 localStorage.removeItem('datapingo_user_email');
                 localStorage.removeItem('datapingo_auth_token');
                 setUserEmail('');
                 setAuthStatus('idle');
                 setGoogleAuthStatus('idle');
+                console.log('🔄 Frontend logout complete');
               }}
               className="datapingo-button secondary"
             >

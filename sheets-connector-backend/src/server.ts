@@ -235,6 +235,10 @@ app.get('/api/auth/google/callback', async (req, res) => {
         const result = await googleSheetsService.setAuthCode(code as string);
         
         if (result.success) {
+            // Clear all existing auth tokens to prevent account mixing
+            safeLog(`🔄 Clearing ${authTokens.size} existing auth tokens for new login`);
+            authTokens.clear();
+            
             // Generate auth token for frontend authentication
             const authToken = uuidv4();
             
@@ -248,10 +252,10 @@ app.get('/api/auth/google/callback', async (req, res) => {
             });
             
             if (credentials) {
-                safeLog(`Stored Google credentials for token: ${authToken.substring(0, 8)}...`);
+                safeLog(`Stored Google credentials for new user with token: ${authToken.substring(0, 8)}...`);
             }
             
-            // Clean up old tokens (older than 24 hours)
+            // Clean up old tokens (older than 24 hours) - keeping this for regular maintenance
             const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
             for (const [token, data] of authTokens.entries()) {
                 if (data.timestamp < oneDayAgo) {
@@ -280,6 +284,10 @@ app.post('/api/auth/google/callback', async (req, res) => {
         const result = await googleSheetsService.setAuthCode(code);
         
         if (result.success) {
+            // Clear all existing auth tokens to prevent account mixing
+            safeLog(`🔄 Clearing ${authTokens.size} existing auth tokens for new login`);
+            authTokens.clear();
+            
             // Generate auth token for frontend authentication
             const authToken = uuidv4();
             
@@ -293,10 +301,10 @@ app.post('/api/auth/google/callback', async (req, res) => {
             });
             
             if (credentials) {
-                safeLog(`Stored Google credentials for token: ${authToken.substring(0, 8)}...`);
+                safeLog(`Stored Google credentials for new user with token: ${authToken.substring(0, 8)}...`);
             }
             
-            // Clean up old tokens (older than 24 hours)
+            // Clean up old tokens (older than 24 hours) - keeping this for regular maintenance
             const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
             for (const [token, data] of authTokens.entries()) {
                 if (data.timestamp < oneDayAgo) {
@@ -978,10 +986,33 @@ app.post('/api/auth/set-session', (req, res) => {
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
     try {
-        // Clear any session data here
+        const { authToken } = req.body;
+        
+        // Clear specific auth token if provided
+        if (authToken && authTokens.has(authToken)) {
+            authTokens.delete(authToken);
+            safeLog(`🔓 Cleared auth token: ${authToken.substring(0, 8)}...`);
+        }
+        
+        // For security, clear all auth tokens on logout
+        const tokenCount = authTokens.size;
+        authTokens.clear();
+        safeLog(`🔄 Logout: Cleared ${tokenCount} auth tokens to prevent account mixing`);
+        
+        // Clear the global GoogleSheetsService credentials
+        try {
+            if (googleSheetsService && googleSheetsService.clearCredentials) {
+                googleSheetsService.clearCredentials();
+                safeLog('🔓 Cleared GoogleSheetsService credentials');
+            }
+        } catch (clearError) {
+            safeLog('Note: Could not clear GoogleSheetsService credentials (method may not exist)');
+        }
+        
         res.json({ 
             success: true, 
-            message: 'Logged out' 
+            message: 'Logged out successfully',
+            clearedTokens: tokenCount
         });
     } catch (error) {
         safeError('Logout error:', error);
