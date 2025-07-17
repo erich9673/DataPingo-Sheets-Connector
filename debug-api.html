@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Debug</title>
+</head>
+<body>
+    <h1>API Configuration Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        // Check environment detection
+        const isRailwayProduction = window.location.hostname.includes('railway.app');
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        const API_BASE_URL = isRailwayProduction ? '' : 'http://localhost:3001';
+        
+        output.innerHTML = `
+            <p><strong>Hostname:</strong> ${window.location.hostname}</p>
+            <p><strong>Is Railway:</strong> ${isRailwayProduction}</p>
+            <p><strong>Is Localhost:</strong> ${isLocalhost}</p>
+            <p><strong>API Base URL:</strong> ${API_BASE_URL}</p>
+            <p><strong>Auth URL:</strong> ${API_BASE_URL}/api/auth/google/url</p>
+            
+            <h2>Testing API Call</h2>
+            <button onclick="testApi()">Test Health Endpoint</button>
+            <div id="apiResult"></div>
+        `;
+        
+        window.testApi = async function() {
+            const apiResult = document.getElementById('apiResult');
+            try {
+                const response = await fetch('/health');
+                const text = await response.text();
+                apiResult.innerHTML = `<p style="color: green;">Health endpoint response: ${text}</p>`;
+            } catch (error) {
+                apiResult.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        };
+    </script>
+</body>
+</html>
