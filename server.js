@@ -90,6 +90,8 @@ try {
       // Start backend server directly (it will run on its own port)
       setTimeout(() => {
         console.log('🚀 Starting backend server...');
+        // Set environment variable to use a different port
+        process.env.BACKEND_PORT = '3002';
         require(backendPath);
       }, 1000);
       
@@ -100,7 +102,7 @@ try {
       setTimeout(() => {
         console.log('🔗 Setting up API proxy...');
         app.use('/api', createProxyMiddleware({
-          target: 'http://localhost:3001',
+          target: 'http://localhost:3002',
           changeOrigin: true,
           logLevel: 'debug',
           onError: (err, req, res) => {
@@ -111,7 +113,7 @@ try {
             console.log('🔄 Proxying request:', req.method, req.url);
           }
         }));
-        console.log('✅ API proxy configured for /api/* -> localhost:3001');
+        console.log('✅ API proxy configured for /api/* -> localhost:3002');
       }, 2000);
       
     } else {
@@ -133,7 +135,7 @@ try {
       console.log('🚀 DataPingo Sheets Connector running on Railway!');
       console.log('🌐 Port:', PORT);
       console.log('🎨 Frontend: served from dist folder');
-      console.log('⚡ Backend API: proxied to port 3001');
+      console.log('⚡ Backend API: proxied to port 3002');
     });
     
   } else {
