@@ -6,22 +6,32 @@ const isRailwayProduction = typeof window !== 'undefined' &&
 const isLocalhost = typeof window !== 'undefined' && 
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-export const API_BASE_URL = isRailwayProduction
+// EMERGENCY FIX: Force Railway production mode
+const forceRailwayMode = typeof window !== 'undefined' && 
+  window.location.hostname.includes('web-production-aafd.up.railway.app');
+
+export const API_BASE_URL = (isRailwayProduction || forceRailwayMode)
   ? ''  // Railway production - same domain, proxied through /api
   : 'http://localhost:3001';  // Local development - backend on port 3001  
 
-export const IS_PRODUCTION = isRailwayProduction;
+export const IS_PRODUCTION = isRailwayProduction || forceRailwayMode;
 
-// Debug logging for Railway
+// Debug logging for Railway (using alert to ensure it shows)
 if (typeof window !== 'undefined') {
   console.log('🔧 API Configuration Debug:', {
     hostname: window.location.hostname,
     fullURL: window.location.href,
     isRailwayProduction,
+    forceRailwayMode,
     isLocalhost,
     API_BASE_URL,
     IS_PRODUCTION
   });
+  
+  // Emergency debug - use alert to ensure we see it
+  if (window.location.hostname.includes('railway.app')) {
+    alert(`API_BASE_URL: "${API_BASE_URL}" | isRailway: ${isRailwayProduction} | force: ${forceRailwayMode}`);
+  }
 }
 
 // API Endpoints
