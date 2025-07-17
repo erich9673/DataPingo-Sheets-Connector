@@ -432,34 +432,27 @@ class MonitoringService {
         const parts = cellRange.split('!');
         const sheetName = parts.length > 1 ? parts[0] : undefined;
         const range = parts.length > 1 ? parts[1] : parts[0];
-        
         // Extract starting cell (e.g., "A1" from "A1:Z1000")
         const startCell = range.split(':')[0];
-        
         // Parse the starting cell (e.g., "A1" -> row=1, col=1)
         const match = startCell.match(/([A-Z]+)(\d+)/);
         if (!match) {
             return { sheetName, startRow: 1, startCol: 1 };
         }
-        
         const colLetters = match[1];
         const rowNum = parseInt(match[2]);
-        
         // Convert column letters to number
         let colNum = 0;
         for (let i = 0; i < colLetters.length; i++) {
             colNum = colNum * 26 + (colLetters.charCodeAt(i) - 64);
         }
-        
         return { sheetName, startRow: rowNum, startCol: colNum };
     }
     // Simplified change detection with proper cell notation
     findChangedCells(oldValues, newValues, cellRange) {
         const changes = [];
-        
         // Parse the original cell range to get starting position and sheet name
         const { sheetName, startRow, startCol } = this.parseCellRangeForNotification(cellRange);
-        
         for (let i = 0; i < Math.max(oldValues.length, newValues.length); i++) {
             const oldRow = oldValues[i] || [];
             const newRow = newValues[i] || [];
@@ -471,10 +464,8 @@ class MonitoringService {
                     const actualRow = startRow + i;
                     const actualCol = startCol + j;
                     const colLetter = this.columnNumberToLetter(actualCol);
-                    
                     // Format as proper spreadsheet cell reference
                     const cellRef = sheetName ? `${sheetName}!${colLetter}${actualRow}` : `${colLetter}${actualRow}`;
-                    
                     changes.push({
                         cellRange: cellRef,
                         oldValue,

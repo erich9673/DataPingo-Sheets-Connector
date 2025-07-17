@@ -80,6 +80,8 @@ app.use(body_parser_1.default.json());
 app.use(body_parser_1.default.urlencoded({ extended: true }));
 // Serve static files from public directory
 app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
+// Serve frontend static files from the built app
+app.use(express_1.default.static(path_1.default.join(__dirname, '../../sheets-connector-app/dist')));
 // File upload configuration
 const upload = (0, multer_1.default)({
     dest: path_1.default.join(__dirname, '../uploads/'),
@@ -414,9 +416,8 @@ app.post('/api/auth/request-access', (req, res) => {
                 request.approved = true;
             }
             (0, logger_1.safeLog)(`🚀 Auto-approved user: ${email}`);
-            
-            return res.json({ 
-                success: true, 
+            return res.json({
+                success: true,
                 message: 'Access request auto-approved!',
                 status: 'approved'
             });
@@ -559,37 +560,36 @@ app.get('/api/auth/google-status', async (req, res) => {
 // Auto-approval settings endpoints (admin only)
 app.get('/api/auth/auto-approval-status', (req, res) => {
     try {
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             autoApprovalEnabled: AUTO_APPROVE_USERS
         });
-    } catch (error) {
+    }
+    catch (error) {
         (0, logger_1.safeError)('Get auto-approval status error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
 });
 app.post('/api/auth/toggle-auto-approval', (req, res) => {
     try {
         const { enabled } = req.body;
-        
         // Update the runtime auto-approval setting
         AUTO_APPROVE_USERS = Boolean(enabled);
-        
         (0, logger_1.safeLog)(`🔧 Auto-approval ${enabled ? 'enabled' : 'disabled'} by admin`);
-        
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             autoApprovalEnabled: Boolean(enabled),
             message: `Auto-approval ${enabled ? 'enabled' : 'disabled'}`
         });
-    } catch (error) {
+    }
+    catch (error) {
         (0, logger_1.safeError)('Toggle auto-approval error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
 });
@@ -1558,9 +1558,6 @@ app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
         const data = await googleSheetsService.getSheetData(sheetId);
         res.json({
             success: true,
-            data: data.values,
-            columns: data.columns,
-            rows: data.rows
         });
     }
     catch (error) {
