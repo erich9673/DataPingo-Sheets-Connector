@@ -1,6 +1,7 @@
 // API Configuration
 const isRailwayProduction = typeof window !== 'undefined' && 
-  window.location.hostname.includes('railway.app');
+  (window.location.hostname.includes('railway.app') || 
+   window.location.hostname.includes('up.railway.app'));
 
 const isLocalhost = typeof window !== 'undefined' && 
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -15,6 +16,7 @@ export const IS_PRODUCTION = isRailwayProduction;
 if (typeof window !== 'undefined') {
   console.log('🔧 API Configuration Debug:', {
     hostname: window.location.hostname,
+    fullURL: window.location.href,
     isRailwayProduction,
     isLocalhost,
     API_BASE_URL,
