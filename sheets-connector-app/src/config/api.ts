@@ -1,11 +1,15 @@
 // API Configuration
-const isDevelopment = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const isRailwayProduction = typeof window !== 'undefined' && 
+  window.location.hostname.includes('railway.app');
 
-export const API_BASE_URL = isDevelopment 
-  ? 'http://localhost:3001'  // Local development - backend on port 3001
-  : '';  // Production - same domain, proxied through /api
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-export const IS_PRODUCTION = !isDevelopment;
+export const API_BASE_URL = isRailwayProduction
+  ? ''  // Railway production - same domain, proxied through /api
+  : 'http://localhost:3001';  // Local development - backend on port 3001  
+
+export const IS_PRODUCTION = isRailwayProduction;
 
 // API Endpoints
 export const API_ENDPOINTS = {
