@@ -931,13 +931,22 @@ app.post('/api/monitoring/start', async (req, res) => {
         let userCredentials = null;
         if (!fileId) { // Only for Google Sheets, not uploaded files
             const authToken = req.query.authToken || req.body.authToken;
+            (0, logger_1.safeLog)(`🔍 Monitoring start - Auth token received: ${authToken ? authToken.substring(0, 8) + '...' : 'none'}`);
+            (0, logger_1.safeLog)(`🔍 Total stored auth tokens: ${authTokens.size}`);
             if (authToken && authTokens.has(authToken)) {
                 const tokenData = authTokens.get(authToken);
+                (0, logger_1.safeLog)(`🔍 Token data found:`, {
+                    hasCredentials: !!(tokenData && tokenData.googleCredentials),
+                    authenticated: tokenData?.authenticated,
+                    hasRefreshToken: tokenData?.hasRefreshToken,
+                    age: tokenData ? Math.round((Date.now() - tokenData.timestamp) / 1000 / 60) + ' minutes' : 'unknown'
+                });
                 if (tokenData && tokenData.googleCredentials) {
                     userCredentials = tokenData.googleCredentials;
                     (0, logger_1.safeLog)('🔑 Using stored credentials for monitoring job');
                 }
                 else {
+                    (0, logger_1.safeLog)('❌ No Google credentials found in token data');
                     return res.status(401).json({
                         success: false,
                         error: 'No Google credentials found. Please reconnect to Google Sheets.'
@@ -945,6 +954,7 @@ app.post('/api/monitoring/start', async (req, res) => {
                 }
             }
             else {
+                (0, logger_1.safeLog)('❌ Auth token not found or invalid');
                 return res.status(401).json({
                     success: false,
                     error: 'Authentication required for Google Sheets monitoring. Please include authToken.'
