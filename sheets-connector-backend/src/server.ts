@@ -50,6 +50,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Serve frontend static files from the built app
+app.use(express.static(path.join(__dirname, '../../sheets-connector-app/dist')));
+
 // File upload configuration
 const upload = multer({
     dest: path.join(__dirname, '../uploads/'),
@@ -1658,9 +1661,6 @@ app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
         const data = await googleSheetsService.getSheetData(sheetId);
         res.json({
             success: true,
-            data: data.values,
-            columns: data.columns,
-            rows: data.rows
         });
     } catch (error) {
         safeError('Failed to get sheet data:', error);
