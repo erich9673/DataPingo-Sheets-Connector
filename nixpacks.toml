@@ -4,11 +4,17 @@ cmds = ["echo '🚂 Setting up DataPingo Sheets Connector for Railway...'"]
 [phases.install]
 cmds = [
   "npm install",
-  "npm run build"
+  "echo '✅ Root dependencies installed'",
+  "cd sheets-connector-backend && npm install && echo '✅ Backend deps installed' && cd ..",
+  "cd sheets-connector-app && npm install && echo '✅ Frontend deps installed' && cd .."
 ]
 
 [phases.build]
-cmds = ["echo '✅ Build completed'"]
+cmds = [
+  "cd sheets-connector-backend && npx tsc && echo '✅ Backend compiled' && cd ..",
+  "cd sheets-connector-app && npm run build && echo '✅ Frontend built' && cd ..",
+  "echo '✅ Build completed'"
+]
 
 [start]
 cmd = "node server.js"
