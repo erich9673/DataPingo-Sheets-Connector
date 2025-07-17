@@ -60,13 +60,22 @@ try {
       
       // Proxy API calls to backend
       const { createProxyMiddleware } = require('http-proxy-middleware');
+      
+      // Proxy /api routes
       app.use('/api', createProxyMiddleware({
         target: 'http://localhost:3001',
         changeOrigin: true,
         logLevel: 'debug'
       }));
       
-      console.log('🔗 API routes proxied to backend on port 3001');
+      // Proxy health endpoint directly
+      app.use('/health', createProxyMiddleware({
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        logLevel: 'debug'
+      }));
+      
+      console.log('🔗 API routes (/api/*) and health endpoint proxied to backend on port 3001');
     }
     
     // Catch-all handler: serve React app for client-side routing
