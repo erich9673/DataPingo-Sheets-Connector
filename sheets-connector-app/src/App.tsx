@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './styles/App.css';
 import { API_BASE_URL } from './config/api';
+import { Analytics } from './utils/analytics';
 
 type AuthStatus = 'idle' | 'requesting' | 'pending' | 'approved' | 'denied';
 
@@ -40,10 +41,20 @@ const App: React.FC = () => {
 
   // Simple auth check
   useEffect(() => {
+    // Initialize Google Analytics
+    Analytics.init('G-W5VY62S4LR'); // DataPingo GA4 measurement ID
+    Analytics.trackPageView(window.location.pathname, document.title);
+    
     console.log('🚀 App initialization - checking for auth token...');
     
-    // Check for auth token in URL (from OAuth redirect)
+    // Check for installation source (from Slack marketplace)
     const urlParams = new URLSearchParams(window.location.search);
+    const installSource = urlParams.get('source') || urlParams.get('utm_source');
+    if (installSource) {
+      Analytics.trackInstallation(installSource);
+    }
+    
+    // Check for auth token in URL (from OAuth redirect)
     const authToken = urlParams.get('authToken') || urlParams.get('token'); // Support both parameter names
     
     console.log('🔗 URL parameters check:', {

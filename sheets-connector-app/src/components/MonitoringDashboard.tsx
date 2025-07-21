@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { Analytics } from '../utils/analytics';
+import { DownloadHelper } from '../utils/downloadHelper';
 
 interface SpreadsheetConfigData {
   spreadsheetId: string;
@@ -99,6 +101,61 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
     }
   };
 
+  // Add export functionality
+  const exportJobData = async (jobId: string, format: 'csv' | 'json' = 'json') => {
+    try {
+      const response = await fetch(API_ENDPOINTS.monitoringJobs);
+      if (!response.ok) throw new Error('Failed to fetch monitoring data');
+      
+      const allJobs = await response.json();
+      const jobData = allJobs.find((job: any) => job.id === jobId);
+      
+      if (!jobData) throw new Error('Job not found');
+      
+      const filename = DownloadHelper.generateTimestampedFilename(
+        `monitoring_job_${jobId}`, 
+        format
+      );
+      
+      if (format === 'csv') {
+        const csvData = [{
+          jobId: jobData.id,
+          spreadsheet: jobData.spreadsheetName || 'Unknown',
+          sheet: jobData.sheetName || 'Unknown',
+          range: jobData.range || 'Unknown',
+          status: jobData.status || 'Unknown',
+          lastCheck: jobData.lastCheck || 'Never',
+          conditions: JSON.stringify(jobData.conditions || [])
+        }];
+        DownloadHelper.downloadCsv(csvData, filename, `Job ${jobId}`);
+      } else {
+        DownloadHelper.downloadMonitoringReport(jobData, filename, format);
+      }
+      
+      Analytics.trackFeatureUsage('monitoring_dashboard', 'export_job_data');
+    } catch (error) {
+      console.error('Export failed:', error);
+      Analytics.trackError(`Job export failed: ${error}`, 'monitoring_dashboard');
+    }
+  };
+
+  const exportConfiguration = () => {
+    const configData = {
+      spreadsheet: {
+        id: spreadsheet.id,
+        name: spreadsheet.name || 'Unknown',
+        type: spreadsheet.type || 'unknown'
+      },
+      config: config,
+      webhookUrl: webhookUrl,
+      exportedAt: new Date().toISOString()
+    };
+    
+    const filename = DownloadHelper.generateTimestampedFilename('monitoring_config', 'json');
+    DownloadHelper.downloadConfig(configData, filename, 'monitoring_configuration');
+    Analytics.trackFeatureUsage('monitoring_dashboard', 'export_configuration');
+  };
+
   return (
     <div className="connector-card fade-in">
       <div className="connector-header">
@@ -131,6 +188,33 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
                 ✅ Real-time monitoring is active! Changes detected automatically.
               </div>
             )}
+          </div>
+
+          {/* Export Section */}
+          <div className="export-section">
+            <h5>📥 Export Data</h5>
+            <p>Download monitoring data or configuration for backup or sharing.</p>
+            
+            <button
+              onClick={() => exportJobData(spreadsheet.id, 'json')}
+              className="btn-secondary"
+            >
+              📊 Export Job Data (JSON)
+            </button>
+            <button
+              onClick={() => exportJobData(spreadsheet.id, 'csv')}
+              className="btn-secondary"
+              style={{ marginLeft: '1rem' }}
+            >
+              📊 Export Job Data (CSV)
+            </button>
+            <button
+              onClick={exportConfiguration}
+              className="btn-secondary"
+              style={{ marginLeft: '1rem' }}
+            >
+              📂 Export Configuration
+            </button>
           </div>
         </div>
       </div>

@@ -4,6 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DataPingo Admin - Approval Dashboard</title>
+    
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W5VY62S4LR"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-W5VY62S4LR', {
+            page_title: 'Admin Dashboard',
+            custom_map: {
+                'custom_user_type': 'admin'
+            }
+        });
+    </script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -151,6 +165,12 @@
             <button class="btn" id="autoApprovalToggle" onclick="toggleAutoApproval()" style="background: #6c757d; color: white; margin-left: 10px;">
                 🤖 Toggle Auto-Approval
             </button>
+            <button class="btn" onclick="exportAdminData('json')" style="background: #007bff; color: white; margin-left: 10px;">
+                📋 Export JSON
+            </button>
+            <button class="btn" onclick="exportAdminData('csv')" style="background: #28a745; color: white; margin-left: 10px;">
+                📊 Export CSV
+            </button>
         </div>
 
         <div id="statusMessage"></div>
@@ -162,6 +182,122 @@
         const API_BASE = window.location.hostname === 'localhost' 
             ? 'http://localhost:3001/api'
             : '/api';  // Railway production uses same domain
+
+        // Simple analytics tracking for admin actions
+        function trackAdminAction(action, details = {}) {
+            if (typeof gtag === 'function') {
+                gtag('event', 'admin_action', {
+                    event_category: 'admin_dashboard',
+                    event_label: action,
+                    custom_parameters: {
+                        action_type: action,
+                        timestamp: new Date().toISOString(),
+                        ...details
+                    }
+                });
+                console.log('📊 Admin action tracked:', action, details);
+            }
+        }
+
+        // Track admin dashboard usage
+        function trackAdminUsage() {
+            trackAdminAction('dashboard_view');
+        }
+
+        // Export admin data
+        function exportAdminData(format = 'json') {
+            // Track the export intention
+            trackAdminAction('export_initiated', { format });
+            
+            // Get current data
+            fetch(`${API_BASE}/auth/pending-requests`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const exportData = {
+                            exportedAt: new Date().toISOString(),
+                            pendingRequests: data.requests,
+                            totalCount: data.count,
+                            autoApprovalEnabled: false // Will be updated by status check
+                        };
+
+                        // Create download
+                        const filename = `admin_export_${new Date().toISOString().slice(0, 10)}.${format}`;
+                        
+                        if (format === 'csv') {
+                            // Convert to CSV
+                            const csvContent = convertToCSV(data.requests);
+                            downloadFile(csvContent, filename, 'text/csv');
+                        } else {
+                            // JSON export
+                            const jsonContent = JSON.stringify(exportData, null, 2);
+                            downloadFile(jsonContent, filename, 'application/json');
+                        }
+
+                        // Track successful export with download details
+                        trackAdminAction('data_export', { 
+                            format, 
+                            recordCount: data.count,
+                            filename: filename,
+                            fileSize: format === 'csv' ? csvContent?.length : JSON.stringify(exportData).length
+                        });
+                        
+                        // Track as GA4 download event
+                        if (typeof gtag === 'function') {
+                            gtag('event', 'file_download', {
+                                event_category: 'admin_downloads',
+                                event_label: format,
+                                value: data.count,
+                                custom_parameters: {
+                                    file_name: filename,
+                                    file_type: format,
+                                    download_source: 'admin_export',
+                                    record_count: data.count
+                                }
+                            });
+                        }
+                        
+                        showStatus(`✅ Admin data exported: ${filename}`, 'success');
+                    }
+                })
+                .catch(error => {
+                    console.error('Export failed:', error);
+                    trackAdminAction('export_failed', { format, error: error.message });
+                    showStatus(`❌ Export failed: ${error.message}`, 'error');
+                });
+        }
+
+        // Helper function to convert requests to CSV
+        function convertToCSV(requests) {
+            if (!requests || requests.length === 0) return 'No data available';
+            
+            const headers = ['Email', 'Requested At', 'Time Ago'];
+            const csvRows = [headers.join(',')];
+            
+            requests.forEach(request => {
+                const row = [
+                    `"${request.email}"`,
+                    `"${new Date(request.requestedAt || Date.now()).toISOString()}"`,
+                    `"${request.timeAgo}"`
+                ];
+                csvRows.push(row.join(','));
+            });
+            
+            return csvRows.join('\n');
+        }
+
+        // Helper function to trigger download
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
 
         async function loadRequests() {
             try {
@@ -297,6 +433,14 @@
                 
                 if (data.success) {
                     showStatus(`✅ User ${email} has been ${action}!`, 'success');
+                    
+                    // Track admin approval action
+                    trackAdminAction('user_approval', {
+                        action: action,
+                        email: email.substring(0, 5) + '***', // Partial email for privacy
+                        approved: approved
+                    });
+                    
                     // Reload requests after 1 second
                     setTimeout(loadRequests, 1000);
                 } else {
@@ -320,7 +464,10 @@
         }
 
         // Load requests when page loads
-        document.addEventListener('DOMContentLoaded', loadRequests);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadRequests();
+            trackAdminUsage(); // Track admin dashboard access
+        });
 
         // Auto-refresh every 30 seconds
         setInterval(loadRequests, 30000);

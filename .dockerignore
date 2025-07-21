@@ -1,0 +1,40 @@
+# Node modules (will be installed fresh)
+node_modules
+sheets-connector-backend/node_modules
+sheets-connector-app/node_modules
+
+# Logs
+*.log
+server.log
+
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+SETUP*.md
+TROUBLESHOOTING.md
+
+# Development scripts
+setup.sh
+start.sh
+refresh-vscode.sh
+
+# VS Code
+.vscode
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+
+# Backup files
+*.backup
+*.bak
