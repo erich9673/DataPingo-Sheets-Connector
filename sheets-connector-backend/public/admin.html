@@ -147,12 +147,11 @@
 
         <div class="stats">
             <div class="stat">
-                <div class="stat-number" id="pendingCount">-</div>
-                <div class="stat-label">Pending Requests</div>
-            </div>
-            <div class="stat">
-                <div class="stat-number" id="totalRequests">-</div>
-                <div class="stat-label">Total Requests</div>
+                <div class="stat-number" id="pendingCount">-</div>                    <div class="stat-label">Active Sessions</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="totalRequests">-</div>
+                    <div class="stat-label">Total Users</div>
             </div>
             <div class="stat">
                 <div class="stat-number" id="autoApprovalStatus">🔄</div>
@@ -210,25 +209,26 @@
             trackAdminAction('export_initiated', { format });
             
             // Get current data
-            fetch(`${API_BASE}/auth/pending-requests`)
+            fetch(`${API_BASE}/auth/user-activity`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         const exportData = {
                             exportedAt: new Date().toISOString(),
-                            pendingRequests: data.requests,
-                            totalCount: data.count,
-                            autoApprovalEnabled: false // Will be updated by status check
+                            userSessions: data.sessions,
+                            authTokens: data.tokens,
+                            totalUsers: data.totalUsers,
+                            activeTokens: data.activeTokens
                         };
 
                         // Create download
-                        const filename = `admin_export_${new Date().toISOString().slice(0, 10)}.${format}`;
+                        const filename = `user_activity_export_${new Date().toISOString().slice(0, 10)}.${format}`;
                         let fileContent;
                         let fileSize;
                         
                         if (format === 'csv') {
                             // Convert to CSV
-                            fileContent = convertToCSV(data.requests);
+                            fileContent = convertUserActivityToCSV(data.sessions);
                             fileSize = fileContent.length;
                             downloadFile(fileContent, filename, 'text/csv');
                         } else {
@@ -241,7 +241,7 @@
                         // Track successful export with download details
                         trackAdminAction('data_export', { 
                             format, 
-                            recordCount: data.count,
+                            recordCount: data.totalUsers,
                             filename: filename,
                             fileSize: fileSize
                         });
@@ -251,17 +251,17 @@
                             gtag('event', 'file_download', {
                                 event_category: 'admin_downloads',
                                 event_label: format,
-                                value: data.count,
+                                value: data.totalUsers,
                                 custom_parameters: {
                                     file_name: filename,
                                     file_type: format,
                                     download_source: 'admin_export',
-                                    record_count: data.count
+                                    record_count: data.totalUsers
                                 }
                             });
                         }
                         
-                        showStatus(`✅ Admin data exported: ${filename}`, 'success');
+                        showStatus(`✅ User activity exported: ${filename}`, 'success');
                     }
                 })
                 .catch(error => {
@@ -271,7 +271,28 @@
                 });
         }
 
-        // Helper function to convert requests to CSV
+        // Helper function to convert user activity to CSV
+        function convertUserActivityToCSV(sessions) {
+            if (!sessions || sessions.length === 0) return 'No user activity data available';
+            
+            const headers = ['Token ID', 'Login Time', 'Last Active', 'Is Authenticated', 'Has Google Access'];
+            const csvRows = [headers.join(',')];
+            
+            sessions.forEach(session => {
+                const row = [
+                    `"${session.tokenId || 'N/A'}"`,
+                    `"${session.loginTime || 'N/A'}"`,
+                    `"${session.lastActive || 'N/A'}"`,
+                    `"${session.authenticated ? 'Yes' : 'No'}"`,
+                    `"${session.hasRefreshToken ? 'Yes' : 'No'}"`
+                ];
+                csvRows.push(row.join(','));
+            });
+            
+            return csvRows.join('\n');
+        }
+
+        // Helper function to convert requests to CSV (keep for backward compatibility)
         function convertToCSV(requests) {
             if (!requests || requests.length === 0) return 'No data available';
             
@@ -305,15 +326,15 @@
 
         async function loadRequests() {
             try {
-                const response = await fetch(`${API_BASE}/auth/pending-requests`);
+                const response = await fetch(`${API_BASE}/auth/user-activity`);
                 const data = await response.json();
                 
                 if (data.success) {
-                    displayRequests(data.requests);
-                    document.getElementById('pendingCount').textContent = data.count;
-                    document.getElementById('totalRequests').textContent = data.count;
+                    displayUserActivity(data.sessions);
+                    document.getElementById('pendingCount').textContent = data.activeTokens;
+                    document.getElementById('totalRequests').textContent = data.totalUsers;
                 } else {
-                    showStatus('Failed to load requests: ' + data.error, 'error');
+                    showStatus('Failed to load user activity: ' + data.error, 'error');
                 }
             } catch (error) {
                 showStatus('Network error: ' + error.message, 'error');
@@ -382,6 +403,28 @@
             } catch (error) {
                 showStatus(`❌ Network error: ` + error.message, 'error');
             }
+        }
+
+        function displayUserActivity(sessions) {
+            const container = document.getElementById('requestsList');
+            
+            if (sessions.length === 0) {
+                container.innerHTML = '<div class="no-requests">📊 No user sessions yet. Users need to login with Google OAuth to appear here.</div>';
+                return;
+            }
+
+            container.innerHTML = sessions.map(session => `
+                <div class="request-card">
+                    <div class="request-info">
+                        <div>
+                            <div class="email">🔑 Token: ${session.tokenId.substring(0, 8)}...</div>
+                            <div class="timestamp">⏰ Login: ${session.loginTime}</div>
+                            <div class="timestamp">📱 Last Active: ${session.lastActive}</div>
+                            <div class="timestamp">🔐 Google Access: ${session.hasRefreshToken ? '✅ Yes' : '❌ No'}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
         }
 
         function displayRequests(requests) {
