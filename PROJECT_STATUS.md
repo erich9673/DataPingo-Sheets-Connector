@@ -48,6 +48,8 @@
 - `SLACK_FINAL_CHECKLIST.md` - Pre-submission checklist
 - `BETA_TESTING_GUIDE.md` - Testing instructions
 - `RECOVERY_GUIDE.md` - Comprehensive recovery procedures
+- `GA4_DASHBOARD_SETUP.md` - Complete GA4 dashboard and tracking setup
+- `GA4_SETUP_CHECKLIST.md` - Quick checklist for GA4 configuration
 
 ## 🔄 Build Process
 1. **React App**: `cd sheets-connector-app && npm run build`
