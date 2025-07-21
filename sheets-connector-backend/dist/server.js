@@ -249,6 +249,10 @@ app.get('/api/auth/google/callback', async (req, res) => {
             // Clear all existing auth tokens to prevent account mixing
             (0, logger_1.safeLog)(`🔄 Clearing ${authTokens.size} existing auth tokens for new login`);
             authTokens.clear();
+            // Get user profile to capture Gmail address
+            const userProfile = await googleSheetsService.getUserProfile();
+            const userEmail = userProfile.success ? userProfile.email : null;
+            (0, logger_1.safeLog)(`📧 Captured user email: ${userEmail ? userEmail.substring(0, 5) + '***' : 'none'}`);
             // Generate auth token for frontend authentication
             const authToken = (0, uuid_1.v4)();
             // Store credentials for this session/token
@@ -257,7 +261,8 @@ app.get('/api/auth/google/callback', async (req, res) => {
                 timestamp: Date.now(),
                 authenticated: true,
                 hasRefreshToken: true,
-                googleCredentials: credentials
+                googleCredentials: credentials,
+                email: userEmail // Store Gmail address for CSV exports
             });
             if (credentials) {
                 (0, logger_1.safeLog)(`Stored Google credentials for new user with token: ${authToken.substring(0, 8)}...`);
@@ -292,6 +297,10 @@ app.post('/api/auth/google/callback', async (req, res) => {
             // Clear all existing auth tokens to prevent account mixing
             (0, logger_1.safeLog)(`🔄 Clearing ${authTokens.size} existing auth tokens for new login`);
             authTokens.clear();
+            // Get user profile to capture Gmail address
+            const userProfile = await googleSheetsService.getUserProfile();
+            const userEmail = userProfile.success ? userProfile.email : null;
+            (0, logger_1.safeLog)(`📧 Captured user email: ${userEmail ? userEmail.substring(0, 5) + '***' : 'none'}`);
             // Generate auth token for frontend authentication
             const authToken = (0, uuid_1.v4)();
             // Store credentials for this session/token
@@ -300,7 +309,8 @@ app.post('/api/auth/google/callback', async (req, res) => {
                 timestamp: Date.now(),
                 authenticated: true,
                 hasRefreshToken: true,
-                googleCredentials: credentials
+                googleCredentials: credentials,
+                email: userEmail // Store Gmail address for CSV exports
             });
             if (credentials) {
                 (0, logger_1.safeLog)(`Stored Google credentials for new user with token: ${authToken.substring(0, 8)}...`);
@@ -580,6 +590,7 @@ app.get('/api/auth/user-activity', (req, res) => {
             const ageMinutes = Math.floor((Date.now() - data.timestamp) / (1000 * 60));
             return {
                 tokenId: tokenId.substring(0, 8) + '...', // Partial token for privacy
+                email: data.email || 'No email captured', // Gmail address for CSV export
                 loginTime: new Date(data.timestamp).toISOString(),
                 lastActive: `${ageMinutes} minutes ago`,
                 authenticated: data.authenticated,

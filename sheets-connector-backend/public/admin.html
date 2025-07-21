@@ -275,11 +275,12 @@
         function convertUserActivityToCSV(sessions) {
             if (!sessions || sessions.length === 0) return 'No user activity data available';
             
-            const headers = ['Token ID', 'Login Time', 'Last Active', 'Is Authenticated', 'Has Google Access'];
+            const headers = ['Gmail Account', 'Token ID', 'Login Time', 'Last Active', 'Is Authenticated', 'Has Google Access'];
             const csvRows = [headers.join(',')];
             
             sessions.forEach(session => {
                 const row = [
+                    `"${session.email || 'No email captured'}"`,
                     `"${session.tokenId || 'N/A'}"`,
                     `"${session.loginTime || 'N/A'}"`,
                     `"${session.lastActive || 'N/A'}"`,
@@ -436,7 +437,8 @@
                 <div class="request-card">
                     <div class="request-info">
                         <div>
-                            <div class="email">🔑 Token: ${session.tokenId.substring(0, 8)}...</div>
+                            <div class="email">� Gmail: ${session.email || 'No email captured'}</div>
+                            <div class="timestamp">�🔑 Token: ${session.tokenId}</div>
                             <div class="timestamp">⏰ Login: ${session.loginTime}</div>
                             <div class="timestamp">📱 Last Active: ${session.lastActive}</div>
                             <div class="timestamp">🔐 Google Access: ${session.hasRefreshToken ? '✅ Yes' : '❌ No'}</div>

@@ -386,5 +386,36 @@ class GoogleSheetsService {
             (0, logger_1.safeLog)('Google credentials cleared');
         }
     }
+    // Get user profile information including email
+    async getUserProfile() {
+        try {
+            if (!this.auth || !this.auth.credentials || !this.auth.credentials.access_token) {
+                throw new Error('Not authenticated');
+            }
+            // Use Google OAuth2 API to get user info
+            const oauth2 = googleapis_1.google.oauth2({ version: 'v2', auth: this.auth });
+            const response = await oauth2.userinfo.get();
+            const userInfo = response.data;
+            (0, logger_1.safeLog)('User profile retrieved:', {
+                email: userInfo.email,
+                name: userInfo.name,
+                verified_email: userInfo.verified_email
+            });
+            return {
+                success: true,
+                email: userInfo.email,
+                name: userInfo.name,
+                verified_email: userInfo.verified_email,
+                picture: userInfo.picture
+            };
+        }
+        catch (error) {
+            (0, logger_1.safeError)('Error getting user profile:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
 }
 exports.GoogleSheetsService = GoogleSheetsService;
