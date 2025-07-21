@@ -27,6 +27,8 @@
   - [ ] User journey funnel
   - [ ] Feature usage (bar chart)
 
+📋 **Detailed Instructions**: See `GA4_DASHBOARD_DETAILED_STEPS.md` for complete step-by-step guide with exact clicks and settings.
+
 ### Mobile App Setup (Optional, 5 minutes):
 - [ ] 1. Download Google Analytics mobile app
 - [ ] 2. Login with same Google account

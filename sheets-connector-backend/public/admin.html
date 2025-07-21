@@ -223,15 +223,19 @@
 
                         // Create download
                         const filename = `admin_export_${new Date().toISOString().slice(0, 10)}.${format}`;
+                        let fileContent;
+                        let fileSize;
                         
                         if (format === 'csv') {
                             // Convert to CSV
-                            const csvContent = convertToCSV(data.requests);
-                            downloadFile(csvContent, filename, 'text/csv');
+                            fileContent = convertToCSV(data.requests);
+                            fileSize = fileContent.length;
+                            downloadFile(fileContent, filename, 'text/csv');
                         } else {
                             // JSON export
-                            const jsonContent = JSON.stringify(exportData, null, 2);
-                            downloadFile(jsonContent, filename, 'application/json');
+                            fileContent = JSON.stringify(exportData, null, 2);
+                            fileSize = fileContent.length;
+                            downloadFile(fileContent, filename, 'application/json');
                         }
 
                         // Track successful export with download details
@@ -239,7 +243,7 @@
                             format, 
                             recordCount: data.count,
                             filename: filename,
-                            fileSize: format === 'csv' ? csvContent?.length : JSON.stringify(exportData).length
+                            fileSize: fileSize
                         });
                         
                         // Track as GA4 download event
