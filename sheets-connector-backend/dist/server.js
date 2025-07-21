@@ -1729,5 +1729,118 @@ app.get('/api/google/sheets/:sheetId/data', async (req, res) => {
         });
     }
 });
+// Email capture endpoint - Simple workaround for immediate Gmail address capture
+app.get('/api/auth/capture-email', async (req, res) => {
+    try {
+        const authToken = req.headers.authorization?.replace('Bearer ', '') || req.query.authToken;
+        if (!authToken || !authTokens.has(authToken)) {
+            return res.status(401).json({
+                success: false,
+                error: 'Not authenticated. Please provide valid authToken.'
+            });
+        }
+        // Check if user has the necessary OAuth permissions
+        const credentials = googleSheetsService.getCredentials();
+        if (!credentials || !credentials.access_token) {
+            return res.status(401).json({
+                success: false,
+                error: 'No valid Google credentials. Please re-authenticate.'
+            });
+        }
+        // Get user profile using Google OAuth2 API directly
+        const { google } = require('googleapis');
+        const oauth2 = google.oauth2({ version: 'v2', auth: googleSheetsService.getAuth() });
+        const response = await oauth2.userinfo.get();
+        const userEmail = response.data.email;
+        const userName = response.data.name;
+        if (!userEmail) {
+            return res.status(400).json({
+                success: false,
+                error: 'Unable to retrieve email. Please ensure you granted email permissions during login.'
+            });
+        }
+        // Update the auth token entry with email
+        const tokenData = authTokens.get(authToken);
+        if (tokenData) {
+            tokenData.email = userEmail;
+            authTokens.set(authToken, tokenData);
+            (0, logger_1.safeLog)(`📧 Email captured for token ${authToken.substring(0, 8)}...: ${userEmail.substring(0, 5)}***`);
+        }
+        res.json({
+            success: true,
+            email: userEmail,
+            name: userName,
+            message: 'Gmail address captured successfully! It will now appear in admin exports.'
+        });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Email capture error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to capture email'
+        });
+    }
+});
+
+// Email capture endpoint - Simple workaround for immediate Gmail address capture
+app.get('/api/auth/capture-email', async (req, res) => {
+    try {
+        const authToken = req.headers.authorization?.replace('Bearer ', '') || req.query.authToken;
+        
+        if (!authToken || !authTokens.has(authToken)) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Not authenticated. Please provide valid authToken.' 
+            });
+        }
+
+        // Check if user has the necessary OAuth permissions
+        const credentials = googleSheetsService.getCredentials();
+        if (!credentials || !credentials.access_token) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'No valid Google credentials. Please re-authenticate.' 
+            });
+        }
+
+        // Get user profile using Google OAuth2 API directly
+        const { google } = require('googleapis');
+        const oauth2 = google.oauth2({ version: 'v2', auth: googleSheetsService.getAuth() });
+        const response = await oauth2.userinfo.get();
+        
+        const userEmail = response.data.email;
+        const userName = response.data.name;
+        
+        if (!userEmail) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Unable to retrieve email. Please ensure you granted email permissions during login.' 
+            });
+        }
+
+        // Update the auth token entry with email
+        const tokenData = authTokens.get(authToken);
+        if (tokenData) {
+            tokenData.email = userEmail;
+            authTokens.set(authToken, tokenData);
+            (0, logger_1.safeLog)(`📧 Email captured for token ${authToken.substring(0, 8)}...: ${userEmail.substring(0, 5)}***`);
+        }
+        
+        res.json({ 
+            success: true, 
+            email: userEmail,
+            name: userName,
+            message: 'Gmail address captured successfully! It will now appear in admin exports.' 
+        });
+        
+    } catch (error) {
+        (0, logger_1.safeError)('Email capture error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Failed to capture email'
+        });
+    }
+});
+
 // Export the app for integration with main server (must be at the end after all routes)
 module.exports = app;

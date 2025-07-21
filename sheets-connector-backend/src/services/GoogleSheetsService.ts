@@ -483,5 +483,7 @@ export class GoogleSheetsService {
         }
     }
 
-    // ...existing code...
+    getAuth() {
+        return this.auth;
+    }
 }

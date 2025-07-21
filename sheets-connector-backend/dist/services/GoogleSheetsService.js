@@ -419,5 +419,8 @@ class GoogleSheetsService {
             };
         }
     }
+    getAuth() {
+        return this.auth;
+    }
 }
 exports.GoogleSheetsService = GoogleSheetsService;

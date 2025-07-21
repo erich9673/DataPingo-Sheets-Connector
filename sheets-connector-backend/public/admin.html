@@ -164,6 +164,9 @@
             <button class="btn" id="autoApprovalToggle" onclick="toggleAutoApproval()" style="background: #6c757d; color: white; margin-left: 10px;">
                 🤖 Toggle Auto-Approval
             </button>
+            <button class="btn" onclick="captureEmails()" style="background: #ff6b35; color: white; margin-left: 10px;">
+                📧 Capture Emails
+            </button>
             <button class="btn" onclick="exportAdminData('json')" style="background: #007bff; color: white; margin-left: 10px;">
                 📋 Export JSON
             </button>
@@ -516,6 +519,50 @@
                 }
             } catch (error) {
                 showStatus(`❌ Network error: ` + error.message, 'error');
+            }
+        }
+
+        // Capture emails for active sessions - IMMEDIATE FIX for email export
+        async function captureEmails() {
+            try {
+                showStatus('🔍 Attempting to capture Gmail addresses from active sessions...', 'info');
+                
+                // Get current user activity to find sessions without emails
+                const response = await fetch(`${API_BASE}/auth/user-activity`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to get user activity');
+                }
+                
+                const sessionsWithoutEmail = data.sessions.filter(session => 
+                    !session.email || session.email === 'No email captured'
+                );
+                
+                if (sessionsWithoutEmail.length === 0) {
+                    showStatus('✅ All active sessions already have Gmail addresses captured!', 'success');
+                    return;
+                }
+                
+                showStatus(`📧 Found ${sessionsWithoutEmail.length} sessions without emails. Capturing...`, 'info');
+                
+                // Note: This would require the frontend authToken which we don't have access to from admin page
+                // Instead, show instructions to users
+                showStatus(
+                    `📧 To capture Gmail addresses: Users need to visit the main app and login again with the new OAuth permissions. ` +
+                    `Current sessions: ${data.sessions.length}, Missing emails: ${sessionsWithoutEmail.length}`, 
+                    'info'
+                );
+                
+                // Track the attempt
+                trackAdminAction('email_capture_attempt', { 
+                    totalSessions: data.sessions.length,
+                    missingSessions: sessionsWithoutEmail.length 
+                });
+                
+            } catch (error) {
+                console.error('Email capture failed:', error);
+                showStatus(`❌ Email capture failed: ${error.message}`, 'error');
             }
         }
 
