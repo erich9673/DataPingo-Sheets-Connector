@@ -480,4 +480,6 @@ export class GoogleSheetsService {
             };
         }
     }
+
+    // ...existing code...
 }
