@@ -572,6 +572,39 @@ app.get('/api/auth/pending-requests', (req, res) => {
         });
     }
 });
+// Get user activity endpoint (admin only) - shows actual user sessions instead of pending requests
+app.get('/api/auth/user-activity', (req, res) => {
+    try {
+        // Convert auth tokens to user activity data
+        const sessions = Array.from(authTokens.entries()).map(([tokenId, data]) => {
+            const ageMinutes = Math.floor((Date.now() - data.timestamp) / (1000 * 60));
+            return {
+                tokenId: tokenId.substring(0, 8) + '...', // Partial token for privacy
+                loginTime: new Date(data.timestamp).toISOString(),
+                lastActive: `${ageMinutes} minutes ago`,
+                authenticated: data.authenticated,
+                hasRefreshToken: data.hasRefreshToken,
+                ageMinutes: ageMinutes
+            };
+        });
+        // Sort by most recent first
+        sessions.sort((a, b) => a.ageMinutes - b.ageMinutes);
+        res.json({
+            success: true,
+            sessions: sessions,
+            totalUsers: sessions.length,
+            activeTokens: sessions.filter(s => s.ageMinutes < 60).length, // Active in last hour
+            activeInLast24h: sessions.filter(s => s.ageMinutes < 1440).length // Active in last 24 hours
+        });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Get user activity error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 // Check auth status with manual approval support
 app.get('/api/auth/status', async (req, res) => {
     try {
