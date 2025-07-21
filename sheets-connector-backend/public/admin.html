@@ -326,17 +326,36 @@
 
         async function loadRequests() {
             try {
-                const response = await fetch(`${API_BASE}/auth/user-activity`);
-                const data = await response.json();
+                // Try new user activity endpoint first
+                let response = await fetch(`${API_BASE}/auth/user-activity`);
                 
-                if (data.success) {
-                    displayUserActivity(data.sessions);
-                    document.getElementById('pendingCount').textContent = data.activeTokens;
-                    document.getElementById('totalRequests').textContent = data.totalUsers;
+                // If new endpoint fails, fall back to old pending requests endpoint
+                if (!response.ok) {
+                    console.log('New endpoint not available, falling back to pending requests');
+                    response = await fetch(`${API_BASE}/auth/pending-requests`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        displayRequests(data.requests);
+                        document.getElementById('pendingCount').textContent = data.count;
+                        document.getElementById('totalRequests').textContent = data.count;
+                    } else {
+                        showStatus('Failed to load requests: ' + data.error, 'error');
+                    }
                 } else {
-                    showStatus('Failed to load user activity: ' + data.error, 'error');
+                    // Use new user activity endpoint
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        displayUserActivity(data.sessions);
+                        document.getElementById('pendingCount').textContent = data.activeTokens;
+                        document.getElementById('totalRequests').textContent = data.totalUsers;
+                    } else {
+                        showStatus('Failed to load user activity: ' + data.error, 'error');
+                    }
                 }
             } catch (error) {
+                console.error('Load requests error:', error);
                 showStatus('Network error: ' + error.message, 'error');
             }
             
