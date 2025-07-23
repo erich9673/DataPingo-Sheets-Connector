@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const [availableSheetTabs, setAvailableSheetTabs] = useState<any[]>([]);
   
   // Slack configuration
-  const [slackWebhook, setSlackWebhook] = useState('https://hooks.slack.com/services/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');
+  const [slackWebhook, setSlackWebhook] = useState('');
   const [slackConnected, setSlackConnected] = useState(false);
   
   // Monitoring state
@@ -216,24 +216,9 @@ const App: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        // Open Google OAuth in popup
-        const popup = window.open(data.url, 'google-auth', 'width=600,height=600');
-        
-        // Monitor popup
-        const checkClosed = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(checkClosed);
-            // Check auth status after popup closes
-            setTimeout(async () => {
-              console.log('OAuth popup closed, checking status...');
-              await checkGoogleAuthStatus();
-              // If connected, load sheets
-              if (googleAuthStatus === 'connected') {
-                await loadGoogleSheets();
-              }
-            }, 2000); // Give more time for OAuth to complete
-          }
-        }, 1000);
+        // Redirect to Google OAuth in the same window
+        console.log('🔗 Redirecting to Google OAuth:', data.url);
+        window.location.href = data.url;
       } else {
         setError(data.error || 'Failed to get Google auth URL');
         setGoogleAuthStatus('error');
