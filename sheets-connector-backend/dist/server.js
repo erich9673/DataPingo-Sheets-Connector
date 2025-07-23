@@ -612,6 +612,181 @@ app.get('/api/auth/user-activity', (req, res) => {
         });
     }
 });
+// Simple admin test endpoint
+app.get('/api/admin/test', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            message: 'Admin routes are working',
+            timestamp: new Date().toISOString(),
+            authTokensCount: authTokens.size,
+            monitoringServiceExists: !!monitoringService
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+// Get all monitoring jobs endpoint (admin only)
+app.get('/api/admin/monitoring-jobs', (req, res) => {
+    try {
+        const allJobs = monitoringService.getActiveJobs();
+        (0, logger_1.safeLog)(`🔍 [ADMIN] Getting all monitoring jobs: ${allJobs.length} total jobs found`);
+        // Log basic info about each job for debugging
+        allJobs.forEach((job, index) => {
+            (0, logger_1.safeLog)(`   Job ${index + 1}: ${job.spreadsheetName} (User: ${job.userEmail || job.userId || 'Unknown'}) - Active: ${job.isActive}`);
+        });
+        const jobsData = allJobs.map(job => {
+            const ageMinutes = Math.floor((Date.now() - job.createdAt.getTime()) / (1000 * 60));
+            const lastCheckedMinutes = job.lastChecked
+                ? Math.floor((Date.now() - job.lastChecked.getTime()) / (1000 * 60))
+                : null;
+            return {
+                id: job.id.substring(0, 12) + '...', // Truncated for privacy
+                fullJobId: job.id, // Add full ID for debugging
+                spreadsheetName: job.spreadsheetName || 'Unknown',
+                cellRange: job.cellRange,
+                frequencyMinutes: job.frequencyMinutes,
+                sourceType: job.sourceType || 'google_sheets',
+                webhookUrl: job.webhookUrl.substring(0, 50) + '...', // Truncated for security
+                userEmail: job.userEmail || 'No email',
+                userId: job.userId ? job.userId.substring(0, 8) + '...' : 'No userId', // Add userId for debugging
+                userMention: job.userMention || 'None',
+                conditions: job.conditions || [],
+                conditionsCount: (job.conditions || []).length,
+                conditionTypes: (job.conditions || []).map(c => c.type).join(', '),
+                isActive: job.isActive,
+                hasInterval: !!job.intervalId,
+                createdAt: job.createdAt.toISOString(),
+                createdAgo: `${ageMinutes} minutes ago`,
+                lastChecked: job.lastChecked ? job.lastChecked.toISOString() : 'Never',
+                lastCheckedAgo: lastCheckedMinutes ? `${lastCheckedMinutes} minutes ago` : 'Never',
+                ageMinutes: ageMinutes
+            };
+        });
+        // Sort by most recent first
+        jobsData.sort((a, b) => a.ageMinutes - b.ageMinutes);
+        (0, logger_1.safeLog)(`📋 [ADMIN] Returning ${jobsData.length} jobs to admin dashboard`);
+        res.json({
+            success: true,
+            jobs: jobsData,
+            totalJobs: jobsData.length,
+            activeJobs: jobsData.filter(job => job.isActive).length,
+            googleSheetsJobs: jobsData.filter(job => job.sourceType === 'google_sheets').length,
+            uploadedFileJobs: jobsData.filter(job => job.sourceType === 'uploaded_file').length,
+            serverTime: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Get monitoring jobs error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+// Get all users endpoint (admin only) - combines active sessions + users with monitoring jobs
+app.get('/api/admin/all-users', (req, res) => {
+    try {
+        // Get all current active sessions
+        const activeSessions = Array.from(authTokens.entries()).map(([tokenId, data]) => {
+            const ageMinutes = Math.floor((Date.now() - data.timestamp) / (1000 * 60));
+            return {
+                type: 'active_session',
+                tokenId: tokenId.substring(0, 8) + '...',
+                email: data.email || 'No email captured',
+                userId: null,
+                loginTime: new Date(data.timestamp).toISOString(),
+                lastActive: `${ageMinutes} minutes ago`,
+                ageMinutes: ageMinutes,
+                authenticated: data.authenticated,
+                hasRefreshToken: data.hasRefreshToken,
+                monitoringJobs: 0 // Will be calculated below
+            };
+        });
+        // Get all monitoring jobs to extract users
+        const allJobs = monitoringService.getActiveJobs();
+        // Extract unique users from monitoring jobs
+        const usersFromJobs = new Map();
+        allJobs.forEach(job => {
+            const userKey = job.userEmail || job.userId;
+            if (userKey) {
+                if (!usersFromJobs.has(userKey)) {
+                    usersFromJobs.set(userKey, {
+                        type: 'monitoring_user',
+                        email: job.userEmail || 'No email',
+                        userId: job.userId ? job.userId.substring(0, 8) + '...' : null,
+                        fullUserId: job.userId, // For matching purposes
+                        loginTime: job.createdAt.toISOString(),
+                        lastActive: job.lastChecked ? job.lastChecked.toISOString() : 'Never checked',
+                        ageMinutes: Math.floor((Date.now() - job.createdAt.getTime()) / (1000 * 60)),
+                        authenticated: true, // Must be authenticated to create jobs
+                        hasRefreshToken: true, // Must have token to create jobs
+                        monitoringJobs: 0,
+                        activeJobs: 0,
+                        inactiveJobs: 0,
+                        isCurrentlyActive: false
+                    });
+                }
+                const userData = usersFromJobs.get(userKey);
+                userData.monitoringJobs++;
+                if (job.isActive) {
+                    userData.activeJobs++;
+                }
+                else {
+                    userData.inactiveJobs++;
+                }
+            }
+        });
+        // Calculate monitoring job counts for active sessions
+        activeSessions.forEach(session => {
+            if (session.email && session.email !== 'No email captured') {
+                // Find the full token ID from the truncated version
+                const fullTokenId = Array.from(authTokens.keys()).find(tokenId => tokenId.startsWith(session.tokenId.replace('...', '')));
+                const jobCount = allJobs.filter(job => job.userEmail === session.email ||
+                    (job.userId && fullTokenId && job.userId === fullTokenId)).length;
+                session.monitoringJobs = jobCount;
+            }
+        });
+        // Mark users from jobs as currently active if they have an active session
+        const activeEmails = new Set(activeSessions.map(s => s.email).filter(e => e !== 'No email captured'));
+        usersFromJobs.forEach((userData, userKey) => {
+            if (userData.email && activeEmails.has(userData.email)) {
+                userData.isCurrentlyActive = true;
+            }
+        });
+        // Combine all users
+        const allUsers = [
+            ...activeSessions,
+            ...Array.from(usersFromJobs.values()).filter(user => !user.isCurrentlyActive)
+        ];
+        // Sort by most recent activity
+        allUsers.sort((a, b) => a.ageMinutes - b.ageMinutes);
+        (0, logger_1.safeLog)(`🔍 [ADMIN] Getting all users: ${allUsers.length} total users (${activeSessions.length} active sessions, ${usersFromJobs.size} from monitoring jobs)`);
+        res.json({
+            success: true,
+            users: allUsers,
+            stats: {
+                totalUsers: allUsers.length,
+                activeSessionUsers: activeSessions.length,
+                monitoringJobUsers: usersFromJobs.size,
+                usersWithJobs: allUsers.filter(u => u.monitoringJobs > 0).length,
+                totalMonitoringJobs: allJobs.length,
+                activeJobs: allJobs.filter(j => j.isActive).length
+            }
+        });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Failed to get all users:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 // Check auth status with manual approval support
 app.get('/api/auth/status', async (req, res) => {
     try {
@@ -724,112 +899,6 @@ app.get('/api/debug/test-token-auth', async (req, res) => {
                 tokenCount: authTokens.size
             });
         }
-        // Test Google Sheets service
-        const googleStatus = await googleSheetsService.getAuthStatus();
-        res.json({
-            success: true,
-            tokenValid: true,
-            tokenData: {
-                timestamp: tokenData.timestamp,
-                authenticated: tokenData.authenticated,
-                hasRefreshToken: tokenData.hasRefreshToken
-            },
-            googleAuthStatus: googleStatus,
-            tokenCount: authTokens.size
-        });
-    }
-    catch (error) {
-        res.json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-            tokenCount: authTokens.size
-        });
-    }
-});
-// Google Sheets Operations
-app.get('/api/sheets/spreadsheets', async (req, res) => {
-    try {
-        // Check for auth token in query params or headers
-        const authToken = req.query.authToken || req.headers['x-auth-token'];
-        if (authToken) {
-            // Verify token first
-            const tokenData = authTokens.get(authToken);
-            if (!tokenData || !tokenData.authenticated) {
-                return res.status(401).json({
-                    success: false,
-                    error: 'Invalid or expired auth token'
-                });
-            }
-            // Use token-specific credentials
-            if (tokenData.googleCredentials) {
-                console.log('Using token-based authentication with stored credentials');
-                // Temporarily set the credentials for this request
-                googleSheetsService.setCredentials(tokenData.googleCredentials);
-            }
-            else {
-                return res.status(401).json({
-                    success: false,
-                    error: 'No Google credentials found for this token'
-                });
-            }
-        }
-        // Try to get spreadsheets (will work with either session or token auth)
-        const result = await googleSheetsService.getUserSpreadsheets();
-        res.json(result);
-    }
-    catch (error) {
-        (0, logger_1.safeError)('Get spreadsheets error:', error);
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-app.get('/api/sheets/:spreadsheetId/info', async (req, res) => {
-    try {
-        const { spreadsheetId } = req.params;
-        const result = await googleSheetsService.getSpreadsheetInfo(spreadsheetId);
-        res.json(result);
-    }
-    catch (error) {
-        (0, logger_1.safeError)('Get spreadsheet info error:', error);
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-app.get('/api/sheets/:spreadsheetId/values/:range', async (req, res) => {
-    try {
-        const { spreadsheetId, range } = req.params;
-        const result = await googleSheetsService.getCellValues(spreadsheetId, range);
-        res.json({ success: true, values: result });
-    }
-    catch (error) {
-        (0, logger_1.safeError)('Get cell values error:', error);
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
-// Auth token verification endpoint
-app.post('/api/auth/verify-token', (req, res) => {
-    try {
-        const { authToken } = req.body;
-        if (!authToken) {
-            return res.status(400).json({
-                success: false,
-                error: 'Auth token required'
-            });
-        }
-        const tokenData = authTokens.get(authToken);
-        if (!tokenData) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid or expired auth token'
-            });
-        }
         // Check if token is expired (24 hours)
         const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
         if (tokenData.timestamp < oneDayAgo) {
@@ -839,10 +908,14 @@ app.post('/api/auth/verify-token', (req, res) => {
                 error: 'Auth token expired'
             });
         }
+        // Test Google Sheets service
+        const googleStatus = await googleSheetsService.getAuthStatus();
         res.json({
             success: true,
+            tokenValid: true,
             authenticated: tokenData.authenticated,
-            hasRefreshToken: tokenData.hasRefreshToken
+            hasRefreshToken: tokenData.hasRefreshToken,
+            googleSheetsStatus: googleStatus
         });
     }
     catch (error) {
@@ -1570,6 +1643,8 @@ if (!process.env.SKIP_SERVER_START) {
         (0, logger_1.safeLog)(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
         (0, logger_1.safeLog)(`📊 API Base URL: http://localhost:${PORT}/api`);
         (0, logger_1.safeLog)(`🔍 Health Check: http://localhost:${PORT}/health`);
+        (0, logger_1.safeLog)(`🔧 Environment: ${process.env.NODE_ENV}`);
+        (0, logger_1.safeLog)(`📂 Working directory: ${process.cwd()}`);
         // Load persisted monitoring jobs after server starts
         await loadPersistedJobs();
         // Set up periodic job persistence saving
@@ -1577,6 +1652,10 @@ if (!process.env.SKIP_SERVER_START) {
             saveJobsToPersistence();
         }, 10 * 60 * 1000); // Save every 10 minutes
     });
+}
+else {
+    (0, logger_1.safeLog)(`⏭️ Skipping server start due to SKIP_SERVER_START flag`);
+    (0, logger_1.safeLog)(`📦 Backend app exported for integration`);
 }
 // File Upload Endpoint
 app.post('/api/upload/spreadsheet', upload.single('file'), async (req, res) => {
@@ -1990,22 +2069,75 @@ app.post('/api/monitoring/check', async (req, res) => {
         });
     }
 });
-// Job persistence file path
-const JOBS_PERSISTENCE_FILE = path_1.default.join(__dirname, '../data/active-jobs.json');
+// Real-time monitoring status endpoint
+app.get('/api/monitoring/status', (req, res) => {
+    try {
+        const authToken = req.query.authToken;
+        if (!authToken) {
+            return res.status(401).json({
+                success: false,
+                error: 'Auth token required'
+            });
+        }
+        const activeJobs = monitoringService.getActiveJobs();
+        const userJobs = monitoringService.getActiveJobsForCurrentUser(authToken);
+        const status = {
+            totalActiveJobs: activeJobs.length,
+            userActiveJobs: userJobs.length,
+            jobs: userJobs.map(job => ({
+                id: job.id,
+                spreadsheetName: job.spreadsheetName,
+                cellRange: job.cellRange,
+                frequencyMinutes: job.frequencyMinutes,
+                isActive: job.isActive,
+                hasInterval: !!job.intervalId,
+                lastChecked: job.lastChecked,
+                sourceType: job.sourceType,
+                webhookUrl: job.webhookUrl.substring(0, 50) + '...',
+                conditions: job.conditions,
+                createdAt: job.createdAt
+            })),
+            serverTime: new Date().toISOString(),
+            uptime: process.uptime(),
+            memoryUsage: process.memoryUsage()
+        };
+        (0, logger_1.safeLog)(`📊 Monitoring status requested by ${String(authToken).substring(0, 8)}...`);
+        (0, logger_1.safeLog)(`   Active jobs: ${status.totalActiveJobs}, User jobs: ${status.userActiveJobs}`);
+        res.json({
+            success: true,
+            status
+        });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Error getting monitoring status:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+// Job persistence file path - Use absolute path that works on Railway
+const JOBS_PERSISTENCE_FILE = process.env.NODE_ENV === 'production'
+    ? '/tmp/active-jobs.json' // Railway ephemeral storage
+    : path_1.default.join(__dirname, '../data/active-jobs.json');
 // Ensure data directory exists
 const dataDir = path_1.default.dirname(JOBS_PERSISTENCE_FILE);
 if (!fs_1.default.existsSync(dataDir)) {
     fs_1.default.mkdirSync(dataDir, { recursive: true });
+    (0, logger_1.safeLog)(`📁 Created data directory: ${dataDir}`);
 }
 // Load persisted jobs on server start
 const loadPersistedJobs = async () => {
     try {
+        (0, logger_1.safeLog)(`📂 Checking for persisted jobs at: ${JOBS_PERSISTENCE_FILE}`);
         if (fs_1.default.existsSync(JOBS_PERSISTENCE_FILE)) {
             const data = fs_1.default.readFileSync(JOBS_PERSISTENCE_FILE, 'utf8');
+            (0, logger_1.safeLog)(`📄 Raw persistence file content: ${data.substring(0, 200)}...`);
             const persistedJobs = JSON.parse(data);
             (0, logger_1.safeLog)(`📂 Loading ${persistedJobs.length} persisted monitoring jobs...`);
             for (const jobData of persistedJobs) {
                 try {
+                    (0, logger_1.safeLog)(`🔄 Restoring job: ${jobData.id} (${jobData.spreadsheetName})`);
                     // Restart the monitoring job
                     const result = await monitoringService.startMonitoring(jobData.id, jobData.sheetId, jobData.cellRange, jobData.frequencyMinutes, jobData.webhookUrl, jobData.userMention, jobData.conditions, jobData.fileId, jobData.userId, jobData.userEmail, jobData.userCredentials);
                     if (result.success) {
@@ -2021,7 +2153,7 @@ const loadPersistedJobs = async () => {
             }
         }
         else {
-            (0, logger_1.safeLog)('📂 No persisted jobs file found, starting fresh');
+            (0, logger_1.safeLog)(`📂 No persisted jobs file found at ${JOBS_PERSISTENCE_FILE}, starting fresh`);
         }
     }
     catch (error) {
@@ -2032,6 +2164,7 @@ const loadPersistedJobs = async () => {
 const saveJobsToPersistence = () => {
     try {
         const activeJobs = monitoringService.getActiveJobs();
+        (0, logger_1.safeLog)(`💾 Saving ${activeJobs.length} active jobs to persistence...`);
         const jobsToSave = activeJobs.map(job => ({
             id: job.id,
             sheetId: job.sheetId,
@@ -2048,8 +2181,10 @@ const saveJobsToPersistence = () => {
             sourceType: job.sourceType,
             createdAt: job.createdAt
         }));
-        fs_1.default.writeFileSync(JOBS_PERSISTENCE_FILE, JSON.stringify(jobsToSave, null, 2));
-        (0, logger_1.safeLog)(`💾 Saved ${jobsToSave.length} jobs to persistence file`);
+        const jsonData = JSON.stringify(jobsToSave, null, 2);
+        fs_1.default.writeFileSync(JOBS_PERSISTENCE_FILE, jsonData);
+        (0, logger_1.safeLog)(`💾 Saved ${jobsToSave.length} jobs to ${JOBS_PERSISTENCE_FILE}`);
+        (0, logger_1.safeLog)(`📄 Persistence data: ${jsonData.substring(0, 200)}...`);
     }
     catch (error) {
         (0, logger_1.safeError)('Error saving jobs to persistence:', error);

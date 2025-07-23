@@ -68,6 +68,9 @@ class SlackService {
             const https = require('https');
             const url = new url_1.URL(this.webhookUrl);
             const data = JSON.stringify(payload);
+            (0, logger_1.safeLog)(`🌐 [HTTP] Preparing HTTP POST to Slack`);
+            (0, logger_1.safeLog)(`    🔗 URL: ${url.hostname}${url.pathname}`);
+            (0, logger_1.safeLog)(`    📦 Payload size: ${Buffer.byteLength(data)} bytes`);
             const options = {
                 hostname: url.hostname,
                 port: 443,
@@ -80,21 +83,28 @@ class SlackService {
             };
             const req = https.request(options, (res) => {
                 let responseData = '';
+                (0, logger_1.safeLog)(`📡 [HTTP RESPONSE] Status: ${res.statusCode}`);
+                (0, logger_1.safeLog)(`📡 [HTTP RESPONSE] Headers:`, res.headers);
                 res.on('data', (chunk) => {
                     responseData += chunk;
                 });
                 res.on('end', () => {
+                    (0, logger_1.safeLog)(`📡 [HTTP RESPONSE] Body: ${responseData}`);
                     if (res.statusCode >= 200 && res.statusCode < 300) {
+                        (0, logger_1.safeLog)(`✅ [HTTP SUCCESS] Slack webhook accepted the request`);
                         resolve({ success: true });
                     }
                     else {
+                        (0, logger_1.safeError)(`❌ [HTTP ERROR] Slack webhook rejected: ${res.statusCode} - ${responseData}`);
                         resolve({ success: false, error: `HTTP ${res.statusCode}: ${responseData}` });
                     }
                 });
             });
             req.on('error', (error) => {
+                (0, logger_1.safeError)(`💥 [HTTP ERROR] Network error sending to Slack:`, error);
                 resolve({ success: false, error: error.message });
             });
+            (0, logger_1.safeLog)(`📤 [HTTP SEND] Sending request to Slack...`);
             req.write(data);
             req.end();
         });
@@ -126,10 +136,15 @@ class SlackService {
     }
     async sendNotification(message, sheetId, cellRange, oldValue, newValue, spreadsheetName, userMention) {
         try {
-            (0, logger_1.safeLog)('SlackService.sendNotification called for:', cellRange);
+            (0, logger_1.safeLog)(`🔔 [SLACK START] SlackService.sendNotification called`);
+            (0, logger_1.safeLog)(`    📍 Cell Range: ${cellRange}`);
+            (0, logger_1.safeLog)(`    📊 Change: "${oldValue}" → "${newValue}"`);
+            (0, logger_1.safeLog)(`    🏢 Spreadsheet: ${spreadsheetName || 'Unknown'}`);
+            (0, logger_1.safeLog)(`    👤 User Mention: ${userMention || 'None'}`);
+            (0, logger_1.safeLog)(`    🔗 Webhook URL: ${this.webhookUrl.substring(0, 60)}...`);
             // Calculate value delta for numeric values
             const delta = this.calculateValueDelta(oldValue, newValue);
-            (0, logger_1.safeLog)('Calculated delta:', delta);
+            (0, logger_1.safeLog)(`📈 [DELTA CALC] Calculated delta: ${delta}`);
             // Format user mention for Slack - convert @channel to <!channel>, @here to <!here>
             let formattedMention = '';
             if (userMention) {
@@ -148,6 +163,7 @@ class SlackService {
                     formattedMention = userMention;
                 }
             }
+            (0, logger_1.safeLog)(`👤 [MENTION] Formatted mention: ${formattedMention || 'None'}`);
             // Add user mention if provided
             const mentionText = formattedMention ? `\n\n🔔 ${formattedMention}` : '';
             const payload = {
@@ -175,18 +191,21 @@ class SlackService {
                     }
                 ]
             };
-            (0, logger_1.safeLog)('Sending payload to Slack...');
+            (0, logger_1.safeLog)(`📤 [SLACK PAYLOAD] Payload prepared:`, JSON.stringify(payload, null, 2));
+            (0, logger_1.safeLog)(`🌐 [SLACK POST] Sending payload to Slack webhook...`);
             const result = await this.postToSlack(payload);
+            (0, logger_1.safeLog)(`📊 [SLACK RESPONSE] Slack webhook response:`, result);
             if (result.success) {
-                (0, logger_1.safeLog)('Slack notification sent successfully');
+                (0, logger_1.safeLog)(`✅ [SLACK SUCCESS] Slack notification sent successfully`);
                 return { success: true };
             }
             else {
+                (0, logger_1.safeError)(`❌ [SLACK FAILED] Slack webhook failed: ${result.error}`);
                 throw new Error(result.error || 'Unknown error');
             }
         }
         catch (error) {
-            (0, logger_1.safeError)('Error sending Slack notification:', error);
+            (0, logger_1.safeError)(`💥 [SLACK ERROR] Error sending Slack notification:`, error);
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
         }
     }
