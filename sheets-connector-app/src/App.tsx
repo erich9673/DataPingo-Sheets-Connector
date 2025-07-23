@@ -620,6 +620,14 @@ const App: React.FC = () => {
           <div className="user-info">
             <span>👤 {userEmail}</span>
             <button 
+              onClick={clearAllUserData}
+              className="datapingo-button secondary"
+              style={{ marginRight: '0.5rem' }}
+              title="Clear all data for fresh login testing"
+            >
+              🧹 Clear Data
+            </button>
+            <button 
               onClick={async () => {
                 // Get auth token before clearing it
                 const authToken = localStorage.getItem('datapingo_auth_token');
@@ -2078,6 +2086,39 @@ const App: React.FC = () => {
       </div>
     </div>
   );
+
+  // Clear all user data for fresh login testing
+  const clearAllUserData = () => {
+    console.log('🧹 Clearing all user data for fresh login...');
+    
+    // Clear localStorage
+    localStorage.removeItem('datapingo_user_email');
+    localStorage.removeItem('datapingo_auth_token');
+    
+    // Reset all state
+    setUserEmail('');
+    setAuthStatus('idle');
+    setGoogleAuthStatus('idle');
+    setGoogleSheets([]);
+    setSelectedSheet(null);
+    setAvailableSheetTabs([]);
+    setSlackWebhook('');
+    setSlackConnected(false);
+    setMonitoringJobs([]);
+    setSelectedSheetForMonitoring(null);
+    setManualSpreadsheetUrl('');
+    setUseManualUrl(false);
+    setSelectedSheetTab('');
+    setCellRange('A1');
+    setFrequencyMinutes(0.5);
+    setConditions([]);
+    setUserMention('');
+    setConditionsValidationStatus('idle');
+    setValidationMessage('');
+    setError('');
+    
+    console.log('✅ All user data cleared - ready for fresh login');
+  };
 
   // Main render logic
   const renderContent = () => {
