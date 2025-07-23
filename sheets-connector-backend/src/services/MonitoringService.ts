@@ -327,15 +327,17 @@ export class MonitoringService {
                 return changedResult;
             case 'greater_than':
                 const numValueGt = parseFloat(String(newValue));
-                const thresholdGt = condition.threshold;
-                const gtResult = !isNaN(numValueGt) && thresholdGt !== undefined && numValueGt > thresholdGt;
-                safeLog(`📊 Greater than check: ${numValueGt} > ${thresholdGt} = ${gtResult} (isNaN: ${isNaN(numValueGt)}, threshold defined: ${thresholdGt !== undefined})`);
+                // Use threshold if available, otherwise fall back to value
+                const thresholdGt = condition.threshold !== undefined ? condition.threshold : parseFloat(String(condition.value || 0));
+                const gtResult = !isNaN(numValueGt) && !isNaN(thresholdGt) && numValueGt > thresholdGt;
+                safeLog(`📊 Greater than check: ${numValueGt} > ${thresholdGt} = ${gtResult} (numValid: ${!isNaN(numValueGt)}, thresholdValid: ${!isNaN(thresholdGt)})`);
                 return gtResult;
             case 'less_than':
                 const numValueLt = parseFloat(String(newValue));
-                const thresholdLt = condition.threshold;
-                const ltResult = !isNaN(numValueLt) && thresholdLt !== undefined && numValueLt < thresholdLt;
-                safeLog(`📊 Less than check: ${numValueLt} < ${thresholdLt} = ${ltResult}`);
+                // Use threshold if available, otherwise fall back to value
+                const thresholdLt = condition.threshold !== undefined ? condition.threshold : parseFloat(String(condition.value || 0));
+                const ltResult = !isNaN(numValueLt) && !isNaN(thresholdLt) && numValueLt < thresholdLt;
+                safeLog(`📊 Less than check: ${numValueLt} < ${thresholdLt} = ${ltResult} (numValid: ${!isNaN(numValueLt)}, thresholdValid: ${!isNaN(thresholdLt)})`);
                 return ltResult;
             case 'equals':
                 const equalsResult = String(newValue) === String(condition.value);
