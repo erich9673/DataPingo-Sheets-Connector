@@ -77,11 +77,23 @@ const App: React.FC = () => {
     }
     
     const savedEmail = localStorage.getItem('datapingo_user_email');
+    const storedAuthToken = localStorage.getItem('datapingo_auth_token');
+    
+    console.log('🚀 App initialization:', {
+      hasSavedEmail: !!savedEmail,
+      hasAuthToken: !!storedAuthToken,
+      savedEmail: savedEmail || 'none'
+    });
+    
     if (savedEmail) {
       setUserEmail(savedEmail);
       setAuthStatus('approved'); // Assume approved for testing
       checkGoogleAuthStatus(); // Check Google auth when user is approved
       loadMonitoringJobs(); // Load existing monitoring jobs
+    } else if (storedAuthToken) {
+      // If we have an auth token but no saved email, check auth status to potentially get the email
+      console.log('📧 No saved email but auth token exists, checking auth status...');
+      checkGoogleAuthStatus();
     }
   }, []);
 
@@ -110,7 +122,16 @@ const App: React.FC = () => {
         console.log('📄 Token verification data:', tokenData);
         
         if (tokenData.success && tokenData.authenticated) {
-          console.log('✅ Token verified successfully, setting status and loading sheets...');
+          console.log('✅ Token verified successfully, setting user status and loading sheets...');
+          
+          // Set user email and auth status if we got email from token verification
+          if (tokenData.email) {
+            console.log('📧 Setting user email from token verification:', tokenData.email);
+            setUserEmail(tokenData.email);
+            localStorage.setItem('datapingo_user_email', tokenData.email);
+            setAuthStatus('approved');
+          }
+          
           setGoogleAuthStatus('connected');
           await loadGoogleSheets();
           return;
