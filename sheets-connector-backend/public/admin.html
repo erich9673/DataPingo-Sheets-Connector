@@ -136,6 +136,76 @@
             color: #6c757d;
             font-size: 0.9em;
         }
+        
+        /* Monitoring Jobs Styles */
+        .job-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            transition: box-shadow 0.2s;
+        }
+        .job-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .job-title {
+            font-weight: bold;
+            color: #495057;
+            font-size: 1.1em;
+        }
+        .job-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .job-status.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .job-status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .job-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .job-detail {
+            font-size: 0.9em;
+        }
+        .job-detail-label {
+            font-weight: bold;
+            color: #6c757d;
+        }
+        .job-detail-value {
+            color: #495057;
+        }
+        .job-conditions {
+            margin-top: 10px;
+            padding: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        .no-jobs {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -157,6 +227,10 @@
                 <div class="stat-number" id="autoApprovalStatus">🔄</div>
                 <div class="stat-label">Auto-Approval</div>
             </div>
+            <div class="stat">
+                <div class="stat-number" id="totalJobs">-</div>
+                <div class="stat-label">Monitoring Jobs</div>
+            </div>
         </div>
 
         <div style="margin-bottom: 20px;">
@@ -173,6 +247,16 @@
             <button class="btn" onclick="exportAdminData('csv')" style="background: #28a745; color: white; margin-left: 10px;">
                 📊 Export CSV
             </button>
+        </div>
+
+        <!-- Monitoring Jobs Section -->
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
+                📋 Current Monitoring Jobs
+            </h3>
+            <div id="monitoringJobsList">
+                <p style="text-align: center; color: #666; font-style: italic;">Loading monitoring jobs...</p>
+            </div>
         </div>
 
         <div id="statusMessage"></div>
@@ -363,8 +447,89 @@
                 showStatus('Network error: ' + error.message, 'error');
             }
             
-            // Also load auto-approval status
+            // Also load auto-approval status and monitoring jobs
             loadAutoApprovalStatus();
+            loadMonitoringJobs();
+        }
+
+        async function loadMonitoringJobs() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/monitoring-jobs`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayMonitoringJobs(data.jobs);
+                    document.getElementById('totalJobs').textContent = data.totalJobs;
+                } else {
+                    showStatus('Failed to load monitoring jobs: ' + data.error, 'error');
+                    document.getElementById('monitoringJobsList').innerHTML = 
+                        '<div class="no-jobs">❌ Failed to load monitoring jobs</div>';
+                }
+            } catch (error) {
+                console.error('Load monitoring jobs error:', error);
+                document.getElementById('monitoringJobsList').innerHTML = 
+                    '<div class="no-jobs">⚠️ Network error loading monitoring jobs</div>';
+            }
+        }
+
+        function displayMonitoringJobs(jobs) {
+            const container = document.getElementById('monitoringJobsList');
+            
+            if (!jobs || jobs.length === 0) {
+                container.innerHTML = '<div class="no-jobs">📭 No monitoring jobs currently active</div>';
+                return;
+            }
+
+            const jobsHtml = jobs.map(job => `
+                <div class="job-card">
+                    <div class="job-header">
+                        <div class="job-title">📊 ${job.spreadsheetName}</div>
+                        <div class="job-status ${job.isActive ? 'active' : 'inactive'}">
+                            ${job.isActive ? '🟢 Active' : '🔴 Inactive'}
+                        </div>
+                    </div>
+                    
+                    <div class="job-details">
+                        <div class="job-detail">
+                            <span class="job-detail-label">Range:</span>
+                            <span class="job-detail-value">${job.cellRange}</span>
+                        </div>
+                        <div class="job-detail">
+                            <span class="job-detail-label">Frequency:</span>
+                            <span class="job-detail-value">${job.frequencyMinutes} min</span>
+                        </div>
+                        <div class="job-detail">
+                            <span class="job-detail-label">User:</span>
+                            <span class="job-detail-value">${job.userEmail}</span>
+                        </div>
+                        <div class="job-detail">
+                            <span class="job-detail-label">Source:</span>
+                            <span class="job-detail-value">${job.sourceType === 'google_sheets' ? '📊 Google Sheets' : '📄 Uploaded File'}</span>
+                        </div>
+                        <div class="job-detail">
+                            <span class="job-detail-label">Created:</span>
+                            <span class="job-detail-value">${job.createdAgo}</span>
+                        </div>
+                        <div class="job-detail">
+                            <span class="job-detail-label">Last Check:</span>
+                            <span class="job-detail-value">${job.lastCheckedAgo}</span>
+                        </div>
+                    </div>
+                    
+                    ${job.conditionsCount > 0 ? `
+                        <div class="job-conditions">
+                            <strong>📋 Conditions (${job.conditionsCount}):</strong> ${job.conditionTypes || 'Various'}
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 10px; font-size: 0.8em; color: #6c757d;">
+                        🔗 Webhook: ${job.webhookUrl}
+                        ${job.userMention && job.userMention !== 'None' ? ` | 👤 Mentions: ${job.userMention}` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = jobsHtml;
         }
 
         async function loadAutoApprovalStatus() {

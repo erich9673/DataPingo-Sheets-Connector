@@ -637,6 +637,60 @@ app.get('/api/auth/user-activity', (req, res) => {
     }
 });
 
+// Get all monitoring jobs endpoint (admin only)
+app.get('/api/admin/monitoring-jobs', (req, res) => {
+    try {
+        const allJobs = monitoringService.getActiveJobs();
+        
+        const jobsData = allJobs.map(job => {
+            const ageMinutes = Math.floor((Date.now() - job.createdAt.getTime()) / (1000 * 60));
+            const lastCheckedMinutes = job.lastChecked 
+                ? Math.floor((Date.now() - job.lastChecked.getTime()) / (1000 * 60))
+                : null;
+            
+            return {
+                id: job.id.substring(0, 12) + '...', // Truncated for privacy
+                spreadsheetName: job.spreadsheetName || 'Unknown',
+                cellRange: job.cellRange,
+                frequencyMinutes: job.frequencyMinutes,
+                sourceType: job.sourceType || 'google_sheets',
+                webhookUrl: job.webhookUrl.substring(0, 50) + '...', // Truncated for security
+                userEmail: job.userEmail || 'No email',
+                userMention: job.userMention || 'None',
+                conditions: job.conditions || [],
+                conditionsCount: (job.conditions || []).length,
+                conditionTypes: (job.conditions || []).map(c => c.type).join(', '),
+                isActive: job.isActive,
+                hasInterval: !!job.intervalId,
+                createdAt: job.createdAt.toISOString(),
+                createdAgo: `${ageMinutes} minutes ago`,
+                lastChecked: job.lastChecked ? job.lastChecked.toISOString() : 'Never',
+                lastCheckedAgo: lastCheckedMinutes ? `${lastCheckedMinutes} minutes ago` : 'Never',
+                ageMinutes: ageMinutes
+            };
+        });
+
+        // Sort by most recent first
+        jobsData.sort((a, b) => a.ageMinutes - b.ageMinutes);
+
+        res.json({ 
+            success: true, 
+            jobs: jobsData,
+            totalJobs: jobsData.length,
+            activeJobs: jobsData.filter(job => job.isActive).length,
+            googleSheetsJobs: jobsData.filter(job => job.sourceType === 'google_sheets').length,
+            uploadedFileJobs: jobsData.filter(job => job.sourceType === 'uploaded_file').length,
+            serverTime: new Date().toISOString()
+        });
+    } catch (error) {
+        safeError('Get monitoring jobs error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
 // Check auth status with manual approval support
 app.get('/api/auth/status', async (req, res) => {
     try {
