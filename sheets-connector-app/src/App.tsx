@@ -522,7 +522,7 @@ const App: React.FC = () => {
           <div className="brand-header">
             <div className="unified-brand">
               <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="unified-logo" />
-              <h1 className="login-title">DataPingo Sheets Connector for Slack</h1>
+              <h1 className="login-title">Sheets Connector for Slack</h1>
             </div>
           </div>
           <p>Real-time Google Sheets monitoring with intelligent Slack notifications</p>
@@ -1965,7 +1965,7 @@ const App: React.FC = () => {
           <div className="brand-header">
             <div className="unified-brand">
               <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="unified-logo" />
-              <h1 className="login-title">DataPingo Sheets Connector for Slack</h1>
+              <h1 className="login-title">Sheets Connector for Slack</h1>
             </div>
           </div>
           <p>Real-time Google Sheets monitoring with intelligent Slack notifications</p>
