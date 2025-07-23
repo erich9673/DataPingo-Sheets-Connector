@@ -1698,6 +1698,8 @@ if (!process.env.SKIP_SERVER_START) {
         safeLog(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
         safeLog(`📊 API Base URL: http://localhost:${PORT}/api`);
         safeLog(`🔍 Health Check: http://localhost:${PORT}/health`);
+        safeLog(`🔧 Environment: ${process.env.NODE_ENV}`);
+        safeLog(`📂 Working directory: ${process.cwd()}`);
         
         // Load persisted monitoring jobs after server starts
         await loadPersistedJobs();
@@ -1707,6 +1709,9 @@ if (!process.env.SKIP_SERVER_START) {
             saveJobsToPersistence();
         }, 10 * 60 * 1000); // Save every 10 minutes
     });
+} else {
+    safeLog(`⏭️ Skipping server start due to SKIP_SERVER_START flag`);
+    safeLog(`📦 Backend app exported for integration`);
 }
 
 // File Upload Endpoint
