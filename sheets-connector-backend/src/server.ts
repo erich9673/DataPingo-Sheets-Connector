@@ -637,6 +637,24 @@ app.get('/api/auth/user-activity', (req, res) => {
     }
 });
 
+// Simple admin test endpoint
+app.get('/api/admin/test', (req, res) => {
+    try {
+        res.json({ 
+            success: true, 
+            message: 'Admin routes are working',
+            timestamp: new Date().toISOString(),
+            authTokensCount: authTokens.size,
+            monitoringServiceExists: !!monitoringService
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
 // Get all monitoring jobs endpoint (admin only)
 app.get('/api/admin/monitoring-jobs', (req, res) => {
     try {
@@ -694,6 +712,117 @@ app.get('/api/admin/monitoring-jobs', (req, res) => {
         });
     } catch (error) {
         safeError('Get monitoring jobs error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Get all users endpoint (admin only) - combines active sessions + users with monitoring jobs
+app.get('/api/admin/all-users', (req, res) => {
+    try {
+        // Get all current active sessions
+        const activeSessions = Array.from(authTokens.entries()).map(([tokenId, data]) => {
+            const ageMinutes = Math.floor((Date.now() - data.timestamp) / (1000 * 60));
+            return {
+                type: 'active_session',
+                tokenId: tokenId.substring(0, 8) + '...',
+                email: data.email || 'No email captured',
+                userId: null,
+                loginTime: new Date(data.timestamp).toISOString(),
+                lastActive: `${ageMinutes} minutes ago`,
+                ageMinutes: ageMinutes,
+                authenticated: data.authenticated,
+                hasRefreshToken: data.hasRefreshToken,
+                monitoringJobs: 0 // Will be calculated below
+            };
+        });
+
+        // Get all monitoring jobs to extract users
+        const allJobs = monitoringService.getActiveJobs();
+        
+        // Extract unique users from monitoring jobs
+        const usersFromJobs = new Map();
+        allJobs.forEach(job => {
+            const userKey = job.userEmail || job.userId;
+            if (userKey) {
+                if (!usersFromJobs.has(userKey)) {
+                    usersFromJobs.set(userKey, {
+                        type: 'monitoring_user',
+                        email: job.userEmail || 'No email',
+                        userId: job.userId ? job.userId.substring(0, 8) + '...' : null,
+                        fullUserId: job.userId, // For matching purposes
+                        loginTime: job.createdAt.toISOString(),
+                        lastActive: job.lastChecked ? job.lastChecked.toISOString() : 'Never checked',
+                        ageMinutes: Math.floor((Date.now() - job.createdAt.getTime()) / (1000 * 60)),
+                        authenticated: true, // Must be authenticated to create jobs
+                        hasRefreshToken: true, // Must have token to create jobs
+                        monitoringJobs: 0,
+                        activeJobs: 0,
+                        inactiveJobs: 0,
+                        isCurrentlyActive: false
+                    });
+                }
+                const userData = usersFromJobs.get(userKey);
+                userData.monitoringJobs++;
+                if (job.isActive) {
+                    userData.activeJobs++;
+                } else {
+                    userData.inactiveJobs++;
+                }
+            }
+        });
+
+        // Calculate monitoring job counts for active sessions
+        activeSessions.forEach(session => {
+            if (session.email && session.email !== 'No email captured') {
+                // Find the full token ID from the truncated version
+                const fullTokenId = Array.from(authTokens.keys()).find(tokenId => 
+                    tokenId.startsWith(session.tokenId.replace('...', ''))
+                );
+                
+                const jobCount = allJobs.filter(job => 
+                    job.userEmail === session.email || 
+                    (job.userId && fullTokenId && job.userId === fullTokenId)
+                ).length;
+                session.monitoringJobs = jobCount;
+            }
+        });
+
+        // Mark users from jobs as currently active if they have an active session
+        const activeEmails = new Set(activeSessions.map(s => s.email).filter(e => e !== 'No email captured'));
+        usersFromJobs.forEach((userData, userKey) => {
+            if (userData.email && activeEmails.has(userData.email)) {
+                userData.isCurrentlyActive = true;
+            }
+        });
+
+        // Combine all users
+        const allUsers = [
+            ...activeSessions,
+            ...Array.from(usersFromJobs.values()).filter(user => !user.isCurrentlyActive)
+        ];
+
+        // Sort by most recent activity
+        allUsers.sort((a, b) => a.ageMinutes - b.ageMinutes);
+
+        safeLog(`🔍 [ADMIN] Getting all users: ${allUsers.length} total users (${activeSessions.length} active sessions, ${usersFromJobs.size} from monitoring jobs)`);
+
+        res.json({
+            success: true,
+            users: allUsers,
+            stats: {
+                totalUsers: allUsers.length,
+                activeSessionUsers: activeSessions.length,
+                monitoringJobUsers: usersFromJobs.size,
+                usersWithJobs: allUsers.filter(u => u.monitoringJobs > 0).length,
+                totalMonitoringJobs: allJobs.length,
+                activeJobs: allJobs.filter(j => j.isActive).length
+            }
+        });
+    } catch (error) {
+        safeError('Failed to get all users:', error);
         res.status(500).json({ 
             success: false, 
             error: error instanceof Error ? error.message : 'Unknown error' 
@@ -819,118 +948,6 @@ app.get('/api/debug/test-token-auth', async (req, res) => {
             });
         }
         
-        // Test Google Sheets service
-        const googleStatus = await googleSheetsService.getAuthStatus();
-        
-        res.json({ 
-            success: true,
-            tokenValid: true,
-            tokenData: {
-                timestamp: tokenData.timestamp,
-                authenticated: tokenData.authenticated,
-                hasRefreshToken: tokenData.hasRefreshToken
-            },
-            googleAuthStatus: googleStatus,
-            tokenCount: authTokens.size
-        });
-    } catch (error) {
-        res.json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error',
-            tokenCount: authTokens.size
-        });
-    }
-});
-
-// Google Sheets Operations
-app.get('/api/sheets/spreadsheets', async (req, res) => {
-    try {
-        // Check for auth token in query params or headers
-        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
-        
-        if (authToken) {
-            // Verify token first
-            const tokenData = authTokens.get(authToken);
-            if (!tokenData || !tokenData.authenticated) {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'Invalid or expired auth token' 
-                });
-            }
-            
-            // Use token-specific credentials
-            if (tokenData.googleCredentials) {
-                console.log('Using token-based authentication with stored credentials');
-                // Temporarily set the credentials for this request
-                googleSheetsService.setCredentials(tokenData.googleCredentials);
-            } else {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'No Google credentials found for this token' 
-                });
-            }
-        }
-        
-        // Try to get spreadsheets (will work with either session or token auth)
-        const result = await googleSheetsService.getUserSpreadsheets();
-        res.json(result);
-    } catch (error) {
-        safeError('Get spreadsheets error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-        });
-    }
-});
-
-app.get('/api/sheets/:spreadsheetId/info', async (req, res) => {
-    try {
-        const { spreadsheetId } = req.params;
-        const result = await googleSheetsService.getSpreadsheetInfo(spreadsheetId);
-        res.json(result);
-    } catch (error) {
-        safeError('Get spreadsheet info error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-        });
-    }
-});
-
-app.get('/api/sheets/:spreadsheetId/values/:range', async (req, res) => {
-    try {
-        const { spreadsheetId, range } = req.params;
-        const result = await googleSheetsService.getCellValues(spreadsheetId, range);
-        res.json({ success: true, values: result });
-    } catch (error) {
-        safeError('Get cell values error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-        });
-    }
-});
-
-// Auth token verification endpoint
-app.post('/api/auth/verify-token', (req, res) => {
-    try {
-        const { authToken } = req.body;
-        
-        if (!authToken) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Auth token required' 
-            });
-        }
-        
-        const tokenData = authTokens.get(authToken);
-        if (!tokenData) {
-            return res.status(401).json({ 
-                success: false, 
-                error: 'Invalid or expired auth token' 
-            });
-        }
-        
         // Check if token is expired (24 hours)
         const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
         if (tokenData.timestamp < oneDayAgo) {
@@ -941,10 +958,15 @@ app.post('/api/auth/verify-token', (req, res) => {
             });
         }
         
+        // Test Google Sheets service
+        const googleStatus = await googleSheetsService.getAuthStatus();
+        
         res.json({ 
-            success: true, 
+            success: true,
+            tokenValid: true,
             authenticated: tokenData.authenticated,
-            hasRefreshToken: tokenData.hasRefreshToken
+            hasRefreshToken: tokenData.hasRefreshToken,
+            googleSheetsStatus: googleStatus
         });
     } catch (error) {
         safeError('Token verification error:', error);
