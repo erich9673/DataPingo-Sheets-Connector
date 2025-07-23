@@ -2212,26 +2212,34 @@ app.get('/api/monitoring/status', (req, res) => {
     }
 });
 
-// Job persistence file path
-const JOBS_PERSISTENCE_FILE = path.join(__dirname, '../data/active-jobs.json');
+// Job persistence file path - Use absolute path that works on Railway
+const JOBS_PERSISTENCE_FILE = process.env.NODE_ENV === 'production' 
+    ? '/tmp/active-jobs.json'  // Railway ephemeral storage
+    : path.join(__dirname, '../data/active-jobs.json');
 
 // Ensure data directory exists
 const dataDir = path.dirname(JOBS_PERSISTENCE_FILE);
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
+    safeLog(`📁 Created data directory: ${dataDir}`);
 }
 
 // Load persisted jobs on server start
 const loadPersistedJobs = async () => {
     try {
+        safeLog(`📂 Checking for persisted jobs at: ${JOBS_PERSISTENCE_FILE}`);
+        
         if (fs.existsSync(JOBS_PERSISTENCE_FILE)) {
             const data = fs.readFileSync(JOBS_PERSISTENCE_FILE, 'utf8');
-            const persistedJobs = JSON.parse(data);
+            safeLog(`📄 Raw persistence file content: ${data.substring(0, 200)}...`);
             
+            const persistedJobs = JSON.parse(data);
             safeLog(`📂 Loading ${persistedJobs.length} persisted monitoring jobs...`);
             
             for (const jobData of persistedJobs) {
                 try {
+                    safeLog(`🔄 Restoring job: ${jobData.id} (${jobData.spreadsheetName})`);
+                    
                     // Restart the monitoring job
                     const result = await monitoringService.startMonitoring(
                         jobData.id,
@@ -2257,7 +2265,7 @@ const loadPersistedJobs = async () => {
                 }
             }
         } else {
-            safeLog('📂 No persisted jobs file found, starting fresh');
+            safeLog(`📂 No persisted jobs file found at ${JOBS_PERSISTENCE_FILE}, starting fresh`);
         }
     } catch (error) {
         safeError('Error loading persisted jobs:', error);
@@ -2268,6 +2276,8 @@ const loadPersistedJobs = async () => {
 const saveJobsToPersistence = () => {
     try {
         const activeJobs = monitoringService.getActiveJobs();
+        safeLog(`💾 Saving ${activeJobs.length} active jobs to persistence...`);
+        
         const jobsToSave = activeJobs.map(job => ({
             id: job.id,
             sheetId: job.sheetId,
@@ -2285,8 +2295,10 @@ const saveJobsToPersistence = () => {
             createdAt: job.createdAt
         }));
         
-        fs.writeFileSync(JOBS_PERSISTENCE_FILE, JSON.stringify(jobsToSave, null, 2));
-        safeLog(`💾 Saved ${jobsToSave.length} jobs to persistence file`);
+        const jsonData = JSON.stringify(jobsToSave, null, 2);
+        fs.writeFileSync(JOBS_PERSISTENCE_FILE, jsonData);
+        safeLog(`💾 Saved ${jobsToSave.length} jobs to ${JOBS_PERSISTENCE_FILE}`);
+        safeLog(`📄 Persistence data: ${jsonData.substring(0, 200)}...`);
     } catch (error) {
         safeError('Error saving jobs to persistence:', error);
     }
