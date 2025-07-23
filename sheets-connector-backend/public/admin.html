@@ -206,6 +206,77 @@
             border-radius: 8px;
             border: 2px dashed #dee2e6;
         }
+
+        /* All Users Styles */
+        .user-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #fff;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .user-email {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #333;
+        }
+        .user-type {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .user-type.active-session {
+            background: #d4edda;
+            color: #155724;
+        }
+        .user-type.monitoring-user {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .user-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .user-detail {
+            font-size: 0.9em;
+        }
+        .user-detail-label {
+            font-weight: bold;
+            color: #6c757d;
+        }
+        .user-detail-value {
+            color: #495057;
+        }
+        .user-jobs-info {
+            margin-top: 10px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        .no-users {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -256,6 +327,36 @@
             </h3>
             <div id="monitoringJobsList">
                 <p style="text-align: center; color: #666; font-style: italic;">Loading monitoring jobs...</p>
+            </div>
+        </div>
+
+        <!-- All Users Section -->
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: #333; border-bottom: 2px solid #28a745; padding-bottom: 10px; margin-bottom: 20px;">
+                👥 All Users (Active + Inactive)
+            </h3>
+            <div style="margin-bottom: 15px; padding: 10px; background: #e9ecef; border-radius: 6px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #28a745;" id="totalUsersCount">-</div>
+                        <div style="font-size: 0.9em; color: #666;">Total Users</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #007bff;" id="activeUsersCount">-</div>
+                        <div style="font-size: 0.9em; color: #666;">Active Sessions</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #6f42c1;" id="usersWithJobsCount">-</div>
+                        <div style="font-size: 0.9em; color: #666;">With Monitoring Jobs</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #fd7e14;" id="totalJobsCount">-</div>
+                        <div style="font-size: 0.9em; color: #666;">Total Jobs Created</div>
+                    </div>
+                </div>
+            </div>
+            <div id="allUsersList">
+                <p style="text-align: center; color: #666; font-style: italic;">Loading all users...</p>
             </div>
         </div>
 
@@ -450,6 +551,7 @@
             // Also load auto-approval status and monitoring jobs
             loadAutoApprovalStatus();
             loadMonitoringJobs();
+            loadAllUsers();
         }
 
         async function loadMonitoringJobs() {
@@ -591,6 +693,92 @@
             } catch (error) {
                 showStatus(`❌ Network error: ` + error.message, 'error');
             }
+        }
+
+        async function loadAllUsers() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/all-users`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAllUsers(data.users, data.stats);
+                    
+                    // Update the stats counters
+                    document.getElementById('totalUsersCount').textContent = data.stats.totalUsers;
+                    document.getElementById('activeUsersCount').textContent = data.stats.activeSessionUsers;
+                    document.getElementById('usersWithJobsCount').textContent = data.stats.usersWithJobs;
+                    document.getElementById('totalJobsCount').textContent = data.stats.totalMonitoringJobs;
+                } else {
+                    showStatus('Failed to load all users: ' + data.error, 'error');
+                    document.getElementById('allUsersList').innerHTML = 
+                        '<div class="no-users">❌ Failed to load users</div>';
+                }
+            } catch (error) {
+                console.error('Load all users error:', error);
+                document.getElementById('allUsersList').innerHTML = 
+                    '<div class="no-users">⚠️ Network error loading users</div>';
+            }
+        }
+
+        function displayAllUsers(users, stats) {
+            const container = document.getElementById('allUsersList');
+            
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="no-users">👤 No users have tried the product yet</div>';
+                return;
+            }
+
+            const usersHtml = users.map(user => `
+                <div class="user-card">
+                    <div class="user-header">
+                        <div class="user-email">
+                            ${user.type === 'active_session' ? '🟢' : '👤'} ${user.email}
+                        </div>
+                        <div class="user-type ${user.type === 'active_session' ? 'active-session' : 'monitoring-user'}">
+                            ${user.type === 'active_session' ? '🔥 Active Session' : '📊 Has Monitoring Jobs'}
+                        </div>
+                    </div>
+                    
+                    <div class="user-details">
+                        <div class="user-detail">
+                            <span class="user-detail-label">Login Time:</span>
+                            <span class="user-detail-value">${new Date(user.loginTime).toLocaleString()}</span>
+                        </div>
+                        <div class="user-detail">
+                            <span class="user-detail-label">Last Active:</span>
+                            <span class="user-detail-value">${user.lastActive}</span>
+                        </div>
+                        <div class="user-detail">
+                            <span class="user-detail-label">Authentication:</span>
+                            <span class="user-detail-value">${user.authenticated ? '✅ Authenticated' : '❌ Not Authenticated'}</span>
+                        </div>
+                        <div class="user-detail">
+                            <span class="user-detail-label">Refresh Token:</span>
+                            <span class="user-detail-value">${user.hasRefreshToken ? '✅ Has Token' : '❌ No Token'}</span>
+                        </div>
+                    </div>
+                    
+                    ${user.monitoringJobs > 0 ? `
+                        <div class="user-jobs-info">
+                            <strong>📊 Monitoring Jobs:</strong> ${user.monitoringJobs} total
+                            ${user.activeJobs !== undefined ? ` (${user.activeJobs} active, ${user.inactiveJobs} inactive)` : ''}
+                            ${user.isCurrentlyActive ? ' | 🟢 Currently online' : ''}
+                        </div>
+                    ` : user.type === 'active_session' ? `
+                        <div class="user-jobs-info">
+                            <strong>📊 Monitoring Jobs:</strong> No monitoring jobs created yet
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 10px; font-size: 0.8em; color: #6c757d;">
+                        ${user.tokenId ? `🔑 Token: ${user.tokenId}` : ''}
+                        ${user.userId ? ` | 🆔 User ID: ${user.userId}` : ''}
+                        ${user.type === 'monitoring_user' && user.isCurrentlyActive ? ' | ✨ Also has active session' : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = usersHtml;
         }
 
         function displayUserActivity(sessions) {

@@ -641,6 +641,12 @@ app.get('/api/auth/user-activity', (req, res) => {
 app.get('/api/admin/monitoring-jobs', (req, res) => {
     try {
         const allJobs = monitoringService.getActiveJobs();
+        safeLog(`🔍 [ADMIN] Getting all monitoring jobs: ${allJobs.length} total jobs found`);
+        
+        // Log basic info about each job for debugging
+        allJobs.forEach((job, index) => {
+            safeLog(`   Job ${index + 1}: ${job.spreadsheetName} (User: ${job.userEmail || job.userId || 'Unknown'}) - Active: ${job.isActive}`);
+        });
         
         const jobsData = allJobs.map(job => {
             const ageMinutes = Math.floor((Date.now() - job.createdAt.getTime()) / (1000 * 60));
@@ -650,12 +656,14 @@ app.get('/api/admin/monitoring-jobs', (req, res) => {
             
             return {
                 id: job.id.substring(0, 12) + '...', // Truncated for privacy
+                fullJobId: job.id, // Add full ID for debugging
                 spreadsheetName: job.spreadsheetName || 'Unknown',
                 cellRange: job.cellRange,
                 frequencyMinutes: job.frequencyMinutes,
                 sourceType: job.sourceType || 'google_sheets',
                 webhookUrl: job.webhookUrl.substring(0, 50) + '...', // Truncated for security
                 userEmail: job.userEmail || 'No email',
+                userId: job.userId ? job.userId.substring(0, 8) + '...' : 'No userId', // Add userId for debugging
                 userMention: job.userMention || 'None',
                 conditions: job.conditions || [],
                 conditionsCount: (job.conditions || []).length,
@@ -673,6 +681,8 @@ app.get('/api/admin/monitoring-jobs', (req, res) => {
         // Sort by most recent first
         jobsData.sort((a, b) => a.ageMinutes - b.ageMinutes);
 
+        safeLog(`📋 [ADMIN] Returning ${jobsData.length} jobs to admin dashboard`);
+        
         res.json({ 
             success: true, 
             jobs: jobsData,
