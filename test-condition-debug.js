@@ -13,7 +13,7 @@ async function testConditionCheck() {
         console.log('🧪 Starting condition check test...');
         
         // First check current job status
-        const statusResponse = await fetch('https://sheets-connector-for-slack-production.up.railway.app/api/monitoring/status');
+        const statusResponse = await fetch('https://web-production-aafd.up.railway.app/api/monitoring/status');
         const status = await statusResponse.json();
         console.log('📊 Current monitoring status:', JSON.stringify(status, null, 2));
         
@@ -71,7 +71,7 @@ async function testConditionCheck() {
         
         // Trigger manual check
         console.log('🔍 Triggering manual monitoring check...');
-        const checkResponse = await fetch('https://sheets-connector-for-slack-production.up.railway.app/api/monitoring/check', {
+        const checkResponse = await fetch('https://web-production-aafd.up.railway.app/api/monitoring/check', {
             method: 'POST'
         });
         const checkResult = await checkResponse.json();

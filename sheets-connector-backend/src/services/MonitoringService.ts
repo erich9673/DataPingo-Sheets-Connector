@@ -258,7 +258,9 @@ export class MonitoringService {
         if (!condition.cellRef) return false;
         
         try {
-            const conditionRange = this.parseCellRange(condition.cellRef, newValues.length, newValues[0]?.length || 0);
+            // Calculate max columns across all rows (not just first row)
+            const maxCols = Math.max(...newValues.map(row => (row || []).length), 0);
+            const conditionRange = this.parseCellRange(condition.cellRef, newValues.length, maxCols);
             
             // Check each cell in the condition range
             for (let row = conditionRange.startRow; row <= conditionRange.endRow; row++) {
