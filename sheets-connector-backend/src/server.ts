@@ -257,14 +257,27 @@ app.get('/api/auth/google/callback', async (req, res) => {
                 }
             }
             
+            // Determine the correct frontend URL based on environment
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://web-production-aafd.up.railway.app' 
+                : 'http://localhost:3002';
+            
+            safeLog(`🔄 OAuth redirect to: ${frontendUrl}/?auth=success&authToken=${authToken.substring(0, 8)}...`);
+            
             // Redirect back to frontend with success
-            res.redirect(`http://localhost:3002/?auth=success&authToken=${authToken}`);
+            res.redirect(`${frontendUrl}/?auth=success&authToken=${authToken}`);
         } else {
-            res.redirect('http://localhost:3002/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
+            const frontendUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://web-production-aafd.up.railway.app' 
+                : 'http://localhost:3002';
+            res.redirect(`${frontendUrl}/?auth=error&message=` + encodeURIComponent(result.error || 'Authentication failed'));
         }
     } catch (error) {
         safeError('Google OAuth callback error:', error);
-        res.redirect('http://localhost:3002/?auth=error&message=' + encodeURIComponent('Authentication failed'));
+        const frontendUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://web-production-aafd.up.railway.app' 
+            : 'http://localhost:3002';
+        res.redirect(`${frontendUrl}/?auth=error&message=` + encodeURIComponent('Authentication failed'));
     }
 });
 
