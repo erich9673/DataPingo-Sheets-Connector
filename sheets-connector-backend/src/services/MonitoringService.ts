@@ -28,6 +28,11 @@ interface MonitoringJob {
     // New fields for uploaded files
     fileId?: string;
     sourceType?: 'google_sheets' | 'uploaded_file';
+    // User isolation - use email instead of auth token for persistence
+    userId?: string; // Keep for backward compatibility
+    userEmail?: string; // New persistent identifier
+    // Store user credentials with the job
+    userCredentials?: any; // Google OAuth credentials for this user
 }
 
 export class MonitoringService {
@@ -61,8 +66,8 @@ export class MonitoringService {
         if (job.sourceType === 'uploaded_file' && job.fileId) {
             return this.getUploadedFileValues(job.fileId, job.cellRange);
         } else {
-            // Use existing Google Sheets logic
-            return this.getGoogleSheetsValues(job.sheetId, job.cellRange);
+            // Use job-specific credentials for Google Sheets
+            return this.getGoogleSheetsValues(job.sheetId, job.cellRange, job.userCredentials);
         }
     }
 
@@ -161,7 +166,7 @@ export class MonitoringService {
     }
 
     // Simplified Google Sheets value retrieval (with basic caching, no duplicate progress tracking)
-    private async getGoogleSheetsValues(sheetId: string, cellRange: string): Promise<any[][]> {
+    private async getGoogleSheetsValues(sheetId: string, cellRange: string, userCredentials?: any): Promise<any[][]> {
         const key = `${sheetId}:${cellRange}`;
         
         // Check cache first
@@ -172,16 +177,26 @@ export class MonitoringService {
             return cached.values;
         }
 
-        // Get fresh values with timeout
-        const currentValues = await Promise.race([
-            this.googleSheetsService.getCellValues(sheetId, cellRange),
-            new Promise<any[][]>((_, reject) => setTimeout(() => reject(new Error('Network timeout')), 10000))
-        ]);
-        
-        // Update cache
-        this.valueCache.set(key, { values: currentValues, timestamp: now });
-        
-        return currentValues;
+        // Temporarily set credentials if provided
+        if (userCredentials) {
+            this.googleSheetsService.setCredentials(userCredentials);
+        }
+
+        try {
+            // Get fresh values with timeout
+            const currentValues = await Promise.race([
+                this.googleSheetsService.getCellValues(sheetId, cellRange),
+                new Promise<any[][]>((_, reject) => setTimeout(() => reject(new Error('Network timeout')), 10000))
+            ]);
+            
+            // Update cache
+            this.valueCache.set(key, { values: currentValues, timestamp: now });
+            
+            return currentValues;
+        } catch (error) {
+            safeError(`Error getting Google Sheets values for ${sheetId}:`, error);
+            throw error;
+        }
     }
 
     // Simplified change detection
@@ -206,8 +221,12 @@ export class MonitoringService {
 
     // Enhanced condition checking with range support
     private shouldNotify(oldValue: any, newValue: any, conditions: MonitoringCondition[], allOldValues?: any[][], allNewValues?: any[][], cellRange?: string): boolean {
+        safeLog(`🔍 Condition check: oldValue=${oldValue}, newValue=${newValue}, conditions=${JSON.stringify(conditions)}`);
+        
         if (!conditions || conditions.length === 0) {
-            return oldValue !== newValue;
+            const result = oldValue !== newValue;
+            safeLog(`📋 No conditions set, change detected: ${result}`);
+            return result;
         }
 
         for (const condition of conditions) {
@@ -315,7 +334,10 @@ export class MonitoringService {
         webhookUrl: string, 
         userMention?: string, 
         conditions: MonitoringCondition[] = [],
-        fileId?: string
+        fileId?: string,
+        userId?: string,
+        userEmail?: string,
+        userCredentials?: any
     ): Promise<{ success: boolean; error?: string }> {
         try {
             // Stop existing job if it exists
@@ -366,7 +388,10 @@ export class MonitoringService {
                 createdAt: new Date(),
                 spreadsheetName,
                 fileId,
-                sourceType
+                sourceType,
+                userId,
+                userEmail,
+                userCredentials // Store user credentials with the job
             };
             
             // Get initial values (with timeout)
@@ -496,7 +521,7 @@ export class MonitoringService {
                     );
                     
                     if (shouldSendNotification) {
-                        safeLog(`📤 Conditions met, sending notification for ${job.spreadsheetName}...`);
+                        safeLog(`📤 Conditions met (or overridden), sending notification for ${job.spreadsheetName}...`);
                         await this.sendNotification(job, changes[0], previousValues, currentValues);
                         safeLog(`✅ Notification sent for ${job.spreadsheetName}`);
                     } else {
@@ -648,8 +673,42 @@ export class MonitoringService {
         return Array.from(this.activeJobs.values());
     }
 
+    // Get jobs filtered by user ID (auth token)
+    getActiveJobsForUser(userId: string): MonitoringJob[] {
+        return Array.from(this.activeJobs.values()).filter(job => job.userId === userId);
+    }
+
+    // Get jobs filtered by user email (persistent across login sessions)
+    getActiveJobsForUserEmail(userEmail: string): MonitoringJob[] {
+        return Array.from(this.activeJobs.values()).filter(job => 
+            job.userEmail === userEmail || 
+            (!job.userEmail && job.userId) // fallback for old jobs without userEmail
+        );
+    }
+
+    // Get jobs for current user (check both auth token and email)
+    getActiveJobsForCurrentUser(authToken: string, userEmail?: string): MonitoringJob[] {
+        return Array.from(this.activeJobs.values()).filter(job => {
+            // Match by auth token (current session)
+            if (job.userId === authToken) return true;
+            // Match by email (persistent across sessions)
+            if (userEmail && job.userEmail === userEmail) return true;
+            return false;
+        });
+    }
+
     getActiveJobsCount(): number {
         return this.activeJobs.size;
+    }
+
+    // Get active jobs count for a specific user
+    getActiveJobsCountForUser(userId: string): number {
+        return this.getActiveJobsForUser(userId).length;
+    }
+
+    // Get active jobs count for a specific user email
+    getActiveJobsCountForUserEmail(userEmail: string): number {
+        return this.getActiveJobsForUserEmail(userEmail).length;
     }
 
     // Get specific job

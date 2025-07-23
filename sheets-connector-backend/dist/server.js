@@ -275,15 +275,15 @@ app.get('/api/auth/google/callback', async (req, res) => {
                 }
             }
             // Redirect back to frontend with success
-            res.redirect(`/?auth=success&authToken=${authToken}`);
+            res.redirect(`http://localhost:3002/?auth=success&authToken=${authToken}`);
         }
         else {
-            res.redirect('/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
+            res.redirect('http://localhost:3002/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
         }
     }
     catch (error) {
         (0, logger_1.safeError)('Google OAuth callback error:', error);
-        res.redirect('/?auth=error&message=' + encodeURIComponent('Authentication failed'));
+        res.redirect('http://localhost:3002/?auth=error&message=' + encodeURIComponent('Authentication failed'));
     }
 });
 app.post('/api/auth/google/callback', async (req, res) => {
@@ -997,11 +997,7 @@ app.post('/api/auth/logout', (req, res) => {
             authTokens.delete(authToken);
             (0, logger_1.safeLog)(`🔓 Cleared auth token: ${authToken.substring(0, 8)}...`);
         }
-        // For security, clear all auth tokens on logout
-        const tokenCount = authTokens.size;
-        authTokens.clear();
-        (0, logger_1.safeLog)(`🔄 Logout: Cleared ${tokenCount} auth tokens to prevent account mixing`);
-        // Clear the global GoogleSheetsService credentials
+        // Clear the global GoogleSheetsService credentials (but keep other users' tokens)
         try {
             if (googleSheetsService && googleSheetsService.clearCredentials) {
                 googleSheetsService.clearCredentials();
@@ -1014,7 +1010,7 @@ app.post('/api/auth/logout', (req, res) => {
         res.json({
             success: true,
             message: 'Logged out successfully',
-            clearedTokens: tokenCount
+            clearedTokens: authToken ? 1 : 0
         });
     }
     catch (error) {
@@ -1041,8 +1037,9 @@ app.post('/api/monitoring/start', async (req, res) => {
             requestHeaders: Object.keys(req.headers),
             hasCredentials: req.headers.cookie ? 'yes' : 'no'
         });
-        // Get credentials for Google Sheets monitoring
+        // Get credentials and user email for Google Sheets monitoring
         let userCredentials = null;
+        let userEmail = null;
         if (!fileId) { // Only for Google Sheets, not uploaded files
             (0, logger_1.safeLog)(`🔍 Monitoring start - Auth token received: ${authToken ? authToken.substring(0, 8) + '...' : 'none'}`);
             (0, logger_1.safeLog)(`🔍 Total stored auth tokens: ${authTokens.size}`);
@@ -1052,11 +1049,14 @@ app.post('/api/monitoring/start', async (req, res) => {
                     hasCredentials: !!(tokenData && tokenData.googleCredentials),
                     authenticated: tokenData?.authenticated,
                     hasRefreshToken: tokenData?.hasRefreshToken,
+                    hasEmail: !!(tokenData && tokenData.email),
                     age: tokenData ? Math.round((Date.now() - tokenData.timestamp) / 1000 / 60) + ' minutes' : 'unknown'
                 });
                 if (tokenData && tokenData.googleCredentials) {
                     userCredentials = tokenData.googleCredentials;
+                    userEmail = tokenData.email; // Get user email for persistent job association
                     (0, logger_1.safeLog)('🔑 Using stored credentials for monitoring job');
+                    (0, logger_1.safeLog)(`📧 User email for job: ${userEmail ? userEmail.substring(0, 5) + '***' : 'none'}`);
                 }
                 else {
                     (0, logger_1.safeLog)('❌ No Google credentials found in token data');
@@ -1144,7 +1144,10 @@ app.post('/api/monitoring/start', async (req, res) => {
             monitoringService.setCredentials(userCredentials);
         }
         const result = await monitoringService.startMonitoring(jobId, sheetId || `file_${fileId}`, // Use fileId as sheetId for uploaded files
-        cellRange, frequencyMinutes, webhookUrl, userMention, convertedConditions, fileId);
+        cellRange, frequencyMinutes, webhookUrl, userMention, convertedConditions, fileId, authToken, // Pass authToken as userId for backward compatibility
+        userEmail, // Pass userEmail for persistent job association
+        userCredentials // Pass user credentials for persistent access
+        );
         if (result.success) {
             res.json({ success: true, jobId });
         }
@@ -1162,7 +1165,26 @@ app.post('/api/monitoring/start', async (req, res) => {
 });
 app.get('/api/monitoring/jobs', (req, res) => {
     try {
-        const jobs = monitoringService.getActiveJobs();
+        // Check for auth token to filter jobs by user
+        const authToken = req.query.authToken || req.headers['x-auth-token'];
+        let jobs;
+        let userEmail;
+        if (authToken) {
+            // Get user email from auth token for persistent job association
+            const tokenData = authTokens.get(authToken);
+            if (tokenData && tokenData.email) {
+                userEmail = tokenData.email;
+            }
+            // Filter jobs by current user (both auth token and email)
+            jobs = monitoringService.getActiveJobsForCurrentUser(authToken, userEmail);
+            const emailInfo = userEmail ? ` (${userEmail.substring(0, 5)}***)` : '';
+            (0, logger_1.safeLog)(`📋 Returning ${jobs.length} monitoring jobs for user: ${authToken.substring(0, 8)}...${emailInfo}`);
+        }
+        else {
+            // No auth token provided - return empty list for security
+            jobs = [];
+            (0, logger_1.safeLog)('⚠️ No auth token provided for /api/monitoring/jobs - returning empty list');
+        }
         // Remove circular references (intervalId) before sending JSON
         const safeJobs = jobs.map(job => ({
             id: job.id,
@@ -1176,7 +1198,7 @@ app.get('/api/monitoring/jobs', (req, res) => {
             createdAt: job.createdAt,
             lastChecked: job.lastChecked,
             spreadsheetName: job.spreadsheetName
-            // Intentionally exclude intervalId and currentValues
+            // Intentionally exclude intervalId, currentValues, userId, and userEmail for security
         }));
         res.json({ success: true, jobs: safeJobs });
     }
@@ -1191,9 +1213,21 @@ app.get('/api/monitoring/jobs', (req, res) => {
 app.get('/api/monitoring/jobs/:jobId', (req, res) => {
     try {
         const { jobId } = req.params;
+        const authToken = req.query.authToken || req.headers['x-auth-token'];
         const job = monitoringService.getJob(jobId);
         if (!job) {
             return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        // Check if the job belongs to the requesting user
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            const userEmail = tokenData && tokenData.email;
+            // Check if job belongs to user (by auth token or email)
+            const jobBelongsToUser = job.userId === authToken ||
+                (userEmail && job.userEmail === userEmail);
+            if (!jobBelongsToUser) {
+                return res.status(403).json({ success: false, error: 'Access denied: Job belongs to another user' });
+            }
         }
         // Create safe job object without circular references
         const safeJob = {
@@ -1222,9 +1256,21 @@ app.get('/api/monitoring/jobs/:jobId', (req, res) => {
 app.post('/api/monitoring/jobs/:jobId/refresh', async (req, res) => {
     try {
         const { jobId } = req.params;
+        const authToken = req.query.authToken || req.headers['x-auth-token'];
         const job = monitoringService.getJob(jobId);
         if (!job) {
             return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        // Check if the job belongs to the requesting user
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            const userEmail = tokenData && tokenData.email;
+            // Check if job belongs to user (by auth token or email)
+            const jobBelongsToUser = job.userId === authToken ||
+                (userEmail && job.userEmail === userEmail);
+            if (!jobBelongsToUser) {
+                return res.status(403).json({ success: false, error: 'Access denied: Job belongs to another user' });
+            }
         }
         // Manually trigger a check for this job
         const result = await monitoringService.checkForChangesPublic(job);
@@ -1255,6 +1301,23 @@ app.post('/api/monitoring/jobs/:jobId/refresh', async (req, res) => {
 app.post('/api/monitoring/stop/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
+        const authToken = req.query.authToken || req.headers['x-auth-token'];
+        // Check if job exists and belongs to user before stopping
+        const job = monitoringService.getJob(jobId);
+        if (!job) {
+            return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        // Check if the job belongs to the requesting user
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            const userEmail = tokenData && tokenData.email;
+            // Check if job belongs to user (by auth token or email)
+            const jobBelongsToUser = job.userId === authToken ||
+                (userEmail && job.userEmail === userEmail);
+            if (!jobBelongsToUser) {
+                return res.status(403).json({ success: false, error: 'Access denied: Job belongs to another user' });
+            }
+        }
         const result = await monitoringService.stopMonitoring(jobId);
         res.json(result);
     }
@@ -1268,9 +1331,33 @@ app.post('/api/monitoring/stop/:jobId', async (req, res) => {
 });
 app.post('/api/monitoring/stop-all', async (req, res) => {
     try {
-        const jobCount = monitoringService.getActiveJobsCount();
-        monitoringService.stopAllJobs();
-        res.json({ success: true, message: 'All monitoring jobs stopped', stoppedCount: jobCount });
+        const authToken = req.query.authToken || req.headers['x-auth-token'];
+        if (!authToken) {
+            return res.status(400).json({ success: false, error: 'Auth token required to stop user jobs' });
+        }
+        // Get user email for persistent job identification
+        const tokenData = authTokens.get(authToken);
+        const userEmail = tokenData && tokenData.email;
+        // Get user's jobs (both current session and previous sessions) and stop them individually
+        const userJobs = monitoringService.getActiveJobsForCurrentUser(authToken, userEmail);
+        let stoppedCount = 0;
+        for (const job of userJobs) {
+            try {
+                await monitoringService.stopMonitoring(job.id);
+                stoppedCount++;
+            }
+            catch (error) {
+                (0, logger_1.safeError)(`Error stopping job ${job.id}:`, error);
+            }
+        }
+        const emailInfo = userEmail ? ` (${userEmail.substring(0, 5)}***)` : '';
+        res.json({
+            success: true,
+            message: `All user monitoring jobs stopped`,
+            stoppedCount: stoppedCount,
+            totalUserJobs: userJobs.length,
+            userInfo: `${authToken.substring(0, 8)}...${emailInfo}`
+        });
     }
     catch (error) {
         (0, logger_1.safeError)('Stop all jobs error:', error);
@@ -1781,66 +1868,5 @@ app.get('/api/auth/capture-email', async (req, res) => {
         });
     }
 });
-
-// Email capture endpoint - Simple workaround for immediate Gmail address capture
-app.get('/api/auth/capture-email', async (req, res) => {
-    try {
-        const authToken = req.headers.authorization?.replace('Bearer ', '') || req.query.authToken;
-        
-        if (!authToken || !authTokens.has(authToken)) {
-            return res.status(401).json({ 
-                success: false, 
-                error: 'Not authenticated. Please provide valid authToken.' 
-            });
-        }
-
-        // Check if user has the necessary OAuth permissions
-        const credentials = googleSheetsService.getCredentials();
-        if (!credentials || !credentials.access_token) {
-            return res.status(401).json({ 
-                success: false, 
-                error: 'No valid Google credentials. Please re-authenticate.' 
-            });
-        }
-
-        // Get user profile using Google OAuth2 API directly
-        const { google } = require('googleapis');
-        const oauth2 = google.oauth2({ version: 'v2', auth: googleSheetsService.getAuth() });
-        const response = await oauth2.userinfo.get();
-        
-        const userEmail = response.data.email;
-        const userName = response.data.name;
-        
-        if (!userEmail) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Unable to retrieve email. Please ensure you granted email permissions during login.' 
-            });
-        }
-
-        // Update the auth token entry with email
-        const tokenData = authTokens.get(authToken);
-        if (tokenData) {
-            tokenData.email = userEmail;
-            authTokens.set(authToken, tokenData);
-            (0, logger_1.safeLog)(`📧 Email captured for token ${authToken.substring(0, 8)}...: ${userEmail.substring(0, 5)}***`);
-        }
-        
-        res.json({ 
-            success: true, 
-            email: userEmail,
-            name: userName,
-            message: 'Gmail address captured successfully! It will now appear in admin exports.' 
-        });
-        
-    } catch (error) {
-        (0, logger_1.safeError)('Email capture error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Failed to capture email'
-        });
-    }
-});
-
 // Export the app for integration with main server (must be at the end after all routes)
 module.exports = app;

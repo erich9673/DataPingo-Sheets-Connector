@@ -361,13 +361,22 @@ const App: React.FC = () => {
   // Monitoring functions
   const loadMonitoringJobs = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/monitoring/jobs`, {
+      // Get auth token for user isolation
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      
+      // Build URL with auth token if available
+      const url = authToken 
+        ? `${API_BASE_URL}/api/monitoring/jobs?authToken=${encodeURIComponent(authToken)}`
+        : `${API_BASE_URL}/api/monitoring/jobs`;
+      
+      const response = await fetch(url, {
         credentials: 'include'
       });
       const data = await response.json();
       
       if (data.success) {
         setMonitoringJobs(data.jobs || []);
+        console.log(`📋 Loaded ${data.jobs?.length || 0} monitoring jobs for current user`);
       } else {
         console.error('Failed to load monitoring jobs:', data.error);
       }
@@ -628,6 +637,7 @@ const App: React.FC = () => {
                 setUserEmail('');
                 setAuthStatus('idle');
                 setGoogleAuthStatus('idle');
+                setMonitoringJobs([]); // Clear monitoring jobs from UI
                 console.log('🔄 Frontend logout complete');
               }}
               className="datapingo-button secondary"
@@ -1914,7 +1924,15 @@ const App: React.FC = () => {
 
   const stopMonitoringJob = async (jobId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/monitoring/stop/${jobId}`, {
+      // Get auth token for user authorization
+      const authToken = localStorage.getItem('datapingo_auth_token');
+      
+      // Build URL with auth token if available
+      const url = authToken 
+        ? `${API_BASE_URL}/api/monitoring/stop/${jobId}?authToken=${encodeURIComponent(authToken)}`
+        : `${API_BASE_URL}/api/monitoring/stop/${jobId}`;
+      
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include'
       });

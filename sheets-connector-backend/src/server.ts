@@ -271,13 +271,13 @@ app.get('/api/auth/google/callback', async (req, res) => {
             }
             
             // Redirect back to frontend with success
-            res.redirect(`/?auth=success&authToken=${authToken}`);
+            res.redirect(`http://localhost:3002/?auth=success&authToken=${authToken}`);
         } else {
-            res.redirect('/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
+            res.redirect('http://localhost:3002/?auth=error&message=' + encodeURIComponent(result.error || 'Authentication failed'));
         }
     } catch (error) {
         safeError('Google OAuth callback error:', error);
-        res.redirect('/?auth=error&message=' + encodeURIComponent('Authentication failed'));
+        res.redirect('http://localhost:3002/?auth=error&message=' + encodeURIComponent('Authentication failed'));
     }
 });
 
@@ -1043,12 +1043,7 @@ app.post('/api/auth/logout', (req, res) => {
             safeLog(`🔓 Cleared auth token: ${authToken.substring(0, 8)}...`);
         }
         
-        // For security, clear all auth tokens on logout
-        const tokenCount = authTokens.size;
-        authTokens.clear();
-        safeLog(`🔄 Logout: Cleared ${tokenCount} auth tokens to prevent account mixing`);
-        
-        // Clear the global GoogleSheetsService credentials
+        // Clear the global GoogleSheetsService credentials (but keep other users' tokens)
         try {
             if (googleSheetsService && googleSheetsService.clearCredentials) {
                 googleSheetsService.clearCredentials();
@@ -1061,7 +1056,7 @@ app.post('/api/auth/logout', (req, res) => {
         res.json({ 
             success: true, 
             message: 'Logged out successfully',
-            clearedTokens: tokenCount
+            clearedTokens: authToken ? 1 : 0
         });
     } catch (error) {
         safeError('Logout error:', error);
@@ -1090,8 +1085,9 @@ app.post('/api/monitoring/start', async (req, res) => {
             hasCredentials: req.headers.cookie ? 'yes' : 'no'
         });
         
-        // Get credentials for Google Sheets monitoring
+        // Get credentials and user email for Google Sheets monitoring
         let userCredentials = null;
+        let userEmail = null;
         if (!fileId) { // Only for Google Sheets, not uploaded files
             safeLog(`🔍 Monitoring start - Auth token received: ${authToken ? authToken.substring(0, 8) + '...' : 'none'}`);
             safeLog(`🔍 Total stored auth tokens: ${authTokens.size}`);
@@ -1102,12 +1098,15 @@ app.post('/api/monitoring/start', async (req, res) => {
                     hasCredentials: !!(tokenData && tokenData.googleCredentials),
                     authenticated: tokenData?.authenticated,
                     hasRefreshToken: tokenData?.hasRefreshToken,
+                    hasEmail: !!(tokenData && tokenData.email),
                     age: tokenData ? Math.round((Date.now() - tokenData.timestamp) / 1000 / 60) + ' minutes' : 'unknown'
                 });
                 
                 if (tokenData && tokenData.googleCredentials) {
                     userCredentials = tokenData.googleCredentials;
+                    userEmail = tokenData.email; // Get user email for persistent job association
                     safeLog('🔑 Using stored credentials for monitoring job');
+                    safeLog(`📧 User email for job: ${userEmail ? userEmail.substring(0, 5) + '***' : 'none'}`);
                 } else {
                     safeLog('❌ No Google credentials found in token data');
                     return res.status(401).json({ 
@@ -1208,7 +1207,10 @@ app.post('/api/monitoring/start', async (req, res) => {
             webhookUrl,
             userMention,
             convertedConditions,
-            fileId
+            fileId,
+            authToken as string, // Pass authToken as userId for backward compatibility
+            userEmail, // Pass userEmail for persistent job association
+            userCredentials // Pass user credentials for persistent access
         );
 
         if (result.success) {
@@ -1227,7 +1229,30 @@ app.post('/api/monitoring/start', async (req, res) => {
 
 app.get('/api/monitoring/jobs', (req, res) => {
     try {
-        const jobs = monitoringService.getActiveJobs();
+        // Check for auth token to filter jobs by user
+        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
+        
+        let jobs: any[];
+        let userEmail: string | undefined;
+        
+        if (authToken) {
+            // Get user email from auth token for persistent job association
+            const tokenData = authTokens.get(authToken);
+            if (tokenData && tokenData.email) {
+                userEmail = tokenData.email;
+            }
+            
+            // Filter jobs by current user (both auth token and email)
+            jobs = monitoringService.getActiveJobsForCurrentUser(authToken, userEmail);
+            
+            const emailInfo = userEmail ? ` (${userEmail.substring(0, 5)}***)` : '';
+            safeLog(`📋 Returning ${jobs.length} monitoring jobs for user: ${authToken.substring(0, 8)}...${emailInfo}`);
+        } else {
+            // No auth token provided - return empty list for security
+            jobs = [];
+            safeLog('⚠️ No auth token provided for /api/monitoring/jobs - returning empty list');
+        }
+        
         // Remove circular references (intervalId) before sending JSON
         const safeJobs = jobs.map(job => ({
             id: job.id,
@@ -1241,7 +1266,7 @@ app.get('/api/monitoring/jobs', (req, res) => {
             createdAt: job.createdAt,
             lastChecked: job.lastChecked,
             spreadsheetName: job.spreadsheetName
-            // Intentionally exclude intervalId and currentValues
+            // Intentionally exclude intervalId, currentValues, userId, and userEmail for security
         }));
         res.json({ success: true, jobs: safeJobs });
     } catch (error) {
@@ -1256,10 +1281,26 @@ app.get('/api/monitoring/jobs', (req, res) => {
 app.get('/api/monitoring/jobs/:jobId', (req, res) => {
     try {
         const { jobId } = req.params;
+        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
+        
         const job = monitoringService.getJob(jobId);
         
         if (!job) {
             return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        
+        // Check if the job belongs to the requesting user
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            const userEmail = tokenData && tokenData.email;
+            
+            // Check if job belongs to user (by auth token or email)
+            const jobBelongsToUser = job.userId === authToken || 
+                                   (userEmail && job.userEmail === userEmail);
+            
+            if (!jobBelongsToUser) {
+                return res.status(403).json({ success: false, error: 'Access denied: Job belongs to another user' });
+            }
         }
         
         // Create safe job object without circular references
@@ -1289,10 +1330,26 @@ app.get('/api/monitoring/jobs/:jobId', (req, res) => {
 app.post('/api/monitoring/jobs/:jobId/refresh', async (req, res) => {
     try {
         const { jobId } = req.params;
+        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
+        
         const job = monitoringService.getJob(jobId);
         
         if (!job) {
             return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        
+        // Check if the job belongs to the requesting user
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            const userEmail = tokenData && tokenData.email;
+            
+            // Check if job belongs to user (by auth token or email)
+            const jobBelongsToUser = job.userId === authToken || 
+                                   (userEmail && job.userEmail === userEmail);
+            
+            if (!jobBelongsToUser) {
+                return res.status(403).json({ success: false, error: 'Access denied: Job belongs to another user' });
+            }
         }
         
         // Manually trigger a check for this job
@@ -1324,6 +1381,28 @@ app.post('/api/monitoring/jobs/:jobId/refresh', async (req, res) => {
 app.post('/api/monitoring/stop/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
+        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
+        
+        // Check if job exists and belongs to user before stopping
+        const job = monitoringService.getJob(jobId);
+        if (!job) {
+            return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        
+        // Check if the job belongs to the requesting user
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            const userEmail = tokenData && tokenData.email;
+            
+            // Check if job belongs to user (by auth token or email)
+            const jobBelongsToUser = job.userId === authToken || 
+                                   (userEmail && job.userEmail === userEmail);
+            
+            if (!jobBelongsToUser) {
+                return res.status(403).json({ success: false, error: 'Access denied: Job belongs to another user' });
+            }
+        }
+        
         const result = await monitoringService.stopMonitoring(jobId);
         res.json(result);
     } catch (error) {
@@ -1337,9 +1416,37 @@ app.post('/api/monitoring/stop/:jobId', async (req, res) => {
 
 app.post('/api/monitoring/stop-all', async (req, res) => {
     try {
-        const jobCount = monitoringService.getActiveJobsCount();
-        monitoringService.stopAllJobs();
-        res.json({ success: true, message: 'All monitoring jobs stopped', stoppedCount: jobCount });
+        const authToken = req.query.authToken as string || req.headers['x-auth-token'] as string;
+        
+        if (!authToken) {
+            return res.status(400).json({ success: false, error: 'Auth token required to stop user jobs' });
+        }
+        
+        // Get user email for persistent job identification
+        const tokenData = authTokens.get(authToken);
+        const userEmail = tokenData && tokenData.email;
+        
+        // Get user's jobs (both current session and previous sessions) and stop them individually
+        const userJobs = monitoringService.getActiveJobsForCurrentUser(authToken, userEmail);
+        let stoppedCount = 0;
+        
+        for (const job of userJobs) {
+            try {
+                await monitoringService.stopMonitoring(job.id);
+                stoppedCount++;
+            } catch (error) {
+                safeError(`Error stopping job ${job.id}:`, error);
+            }
+        }
+        
+        const emailInfo = userEmail ? ` (${userEmail.substring(0, 5)}***)` : '';
+        res.json({ 
+            success: true, 
+            message: `All user monitoring jobs stopped`, 
+            stoppedCount: stoppedCount,
+            totalUserJobs: userJobs.length,
+            userInfo: `${authToken.substring(0, 8)}...${emailInfo}`
+        });
     } catch (error) {
         safeError('Stop all jobs error:', error);
         res.status(500).json({ 
