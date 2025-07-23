@@ -1010,6 +1010,39 @@ app.get('/api/sheets/:spreadsheetId/values/:range', async (req, res) => {
         });
     }
 });
+// Alternative endpoint name for frontend compatibility
+app.get('/api/sheets/spreadsheets', async (req, res) => {
+    try {
+        const { email, authToken } = req.query;
+        // Use the same logic as /api/sheets/list
+        if (email && approvedUsers.has(email)) {
+            const status = await googleSheetsService.getAuthStatus();
+            if (!status.authenticated) {
+                return res.json({
+                    success: false,
+                    error: 'Google authentication required for sheet access',
+                    needsGoogleAuth: true
+                });
+            }
+        }
+        // Set credentials if authToken provided
+        if (authToken) {
+            const tokenData = authTokens.get(authToken);
+            if (tokenData && tokenData.googleCredentials) {
+                googleSheetsService.setCredentials(tokenData.googleCredentials);
+            }
+        }
+        const result = await googleSheetsService.getUserSpreadsheets();
+        res.json(result);
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Get spreadsheets error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 // Google Sheets listing with manual approval support
 app.get('/api/sheets/list', async (req, res) => {
     try {
