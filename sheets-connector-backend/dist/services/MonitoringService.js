@@ -410,10 +410,7 @@ class MonitoringService {
                     (0, logger_1.safeLog)(`📤 Checking conditions for ${job.spreadsheetName}...`);
                     // Check if any condition is met (either cell-specific or range-based)
                     const shouldSendNotification = this.shouldNotify(changes[0].oldValue, changes[0].newValue, job.conditions, previousValues, currentValues, job.cellRange);
-                    // TEMPORARY: Always send notifications when changes are detected for testing
-                    const forceSend = true;
-                    (0, logger_1.safeLog)(`🔧 OVERRIDE: Force sending notification (shouldSend: ${shouldSendNotification}, forceSend: ${forceSend})`);
-                    if (shouldSendNotification || forceSend) {
+                    if (shouldSendNotification) {
                         (0, logger_1.safeLog)(`📤 Conditions met (or overridden), sending notification for ${job.spreadsheetName}...`);
                         await this.sendNotification(job, changes[0], previousValues, currentValues);
                         (0, logger_1.safeLog)(`✅ Notification sent for ${job.spreadsheetName}`);

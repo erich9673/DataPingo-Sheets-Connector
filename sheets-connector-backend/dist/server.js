@@ -1868,5 +1868,29 @@ app.get('/api/auth/capture-email', async (req, res) => {
         });
     }
 });
+// Debug endpoint to check auth token status
+app.get('/api/debug/auth', (req, res) => {
+    const authToken = req.query.authToken;
+    const debugInfo = {
+        authTokenProvided: !!authToken,
+        authTokenLength: authToken ? authToken.length : 0,
+        authTokenPreview: authToken ? authToken.substring(0, 8) + '...' : null,
+        totalStoredTokens: authTokens.size,
+        tokenExists: authToken ? authTokens.has(authToken) : false,
+        tokenData: null
+    };
+    if (authToken && authTokens.has(authToken)) {
+        const tokenData = authTokens.get(authToken);
+        debugInfo.tokenData = {
+            authenticated: tokenData?.authenticated,
+            hasGoogleCredentials: !!(tokenData?.googleCredentials),
+            hasEmail: !!(tokenData?.email),
+            email: tokenData?.email ? tokenData.email.substring(0, 5) + '***' : null,
+            timestamp: tokenData?.timestamp,
+            age: tokenData ? Math.round((Date.now() - tokenData.timestamp) / 1000 / 60) + ' minutes' : null
+        };
+    }
+    res.json(debugInfo);
+});
 // Export the app for integration with main server (must be at the end after all routes)
 module.exports = app;

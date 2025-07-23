@@ -1,21 +1,40 @@
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import path from 'path';
 import multer from 'multer';
-import * as XLSX from 'xlsx';
-import { createReadStream } from 'fs';
-import csvParser from 'csv-parser';
-import { v4 as uuidv4 } from 'uuid';
-import session from 'express-session';
+import fs from 'fs';
+import crypto from 'crypto';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
-import { SlackService } from './services/SlackService';
 import { MonitoringService } from './services/MonitoringService';
+import { SlackService } from './services/SlackService';
 import { safeLog, safeError } from './utils/logger';
+import csvParser from 'csv-parser';
+import * as XLSX from 'xlsx';
 
 // Load environment variables
 dotenv.config();
+
+// Environment variable validation and debugging
+console.log('🔍 Environment Check at Startup:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING');
+console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'MISSING');
+console.log('GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI || 'NOT SET');
+console.log('SESSION_SECRET:', process.env.SESSION_SECRET ? 'SET' : 'MISSING');
+
+// Critical environment variables check
+const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+    console.error('❌ MISSING REQUIRED ENVIRONMENT VARIABLES:', missingVars);
+    console.error('   Please set these in Railway dashboard or local .env file');
+    process.exit(1);
+}
+
+console.log('✅ All required environment variables found');
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || process.env.PORT || 3001;
@@ -38,20 +57,8 @@ app.use(cors({
 }));
 
 // Session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'datapingo-session-secret-' + Math.random(),
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: false, // Set to true in production with HTTPS
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'lax' // Allow cross-site requests
-  }
-}));
-
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
@@ -101,19 +108,16 @@ let globalGoogleCredentials: any = null;
 
 // Initialize services with error handling
 let googleSheetsService: GoogleSheetsService;
-let slackService: SlackService;
 let monitoringService: MonitoringService;
 
 try {
     googleSheetsService = new GoogleSheetsService();
-    slackService = new SlackService('dummy'); // We'll pass the real URL when using it
     monitoringService = new MonitoringService(googleSheetsService, uploadedFiles);
     safeLog('✅ Services initialized successfully');
 } catch (error) {
     safeError('⚠️ Service initialization failed, continuing with basic server:', error);
     // Create minimal fallback services
     googleSheetsService = null as any;
-    slackService = null as any;
     monitoringService = null as any;
 }
 
@@ -151,23 +155,6 @@ app.get('/api/auth/google/url', async (req, res) => {
             success: false, 
             error: error instanceof Error ? error.message : 'Unknown error' 
         });
-    }
-});
-
-// Slack installation endpoint - redirects to complete installation in Slack
-app.get('/slack/install', (req, res) => {
-    try {
-        // Slack App Store requires this endpoint to redirect to slack.com with 302
-        // After installation, users will be directed to our app via the landing page
-        const appId = 'A095BR1R14J';
-        const team = req.query.team || '';
-        const slackRedirectUrl = `https://slack.com/app_redirect?app=${appId}${team ? '&team=' + team : ''}`;
-        
-        safeLog(`Redirecting Slack installation to: ${slackRedirectUrl}`);
-        res.redirect(302, slackRedirectUrl);
-    } catch (error) {
-        safeError('Slack install error:', error);
-        res.redirect(302, `https://slack.com/app_redirect?app=A095BR1R14J&error=install_failed`);
     }
 });
 
@@ -246,7 +233,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
             safeLog(`📧 Captured user email: ${userEmail ? userEmail.substring(0, 5) + '***' : 'none'}`);
             
             // Generate auth token for frontend authentication
-            const authToken = uuidv4();
+            const authToken = crypto.randomBytes(16).toString("hex");
             
             // Store credentials for this session/token
             const credentials = googleSheetsService.getCredentials();
@@ -301,7 +288,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
             safeLog(`📧 Captured user email: ${userEmail ? userEmail.substring(0, 5) + '***' : 'none'}`);
             
             // Generate auth token for frontend authentication
-            const authToken = uuidv4();
+            const authToken = crypto.randomBytes(16).toString("hex");
             
             // Store credentials for this session/token
             const credentials = googleSheetsService.getCredentials();
@@ -1153,7 +1140,7 @@ app.post('/api/monitoring/start', async (req, res) => {
             }
         }
 
-        const jobId = uuidv4();
+        const jobId = crypto.randomBytes(16).toString("hex");
         
         // Convert frontend conditions to backend format
         const convertedConditions = (conditions || []).map((condition: any) => {
@@ -1645,6 +1632,21 @@ app.post('/api/monitoring/setup-push', async (req, res) => {
     }
 });
 
+// Environment check endpoint for debugging
+app.get('/api/env-check', (req, res) => {
+    const envStatus = {
+        NODE_ENV: process.env.NODE_ENV || 'not set',
+        PORT: process.env.PORT || 'not set',
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING',
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'MISSING',
+        JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'MISSING',
+        timestamp: new Date().toISOString(),
+        isProduction: process.env.NODE_ENV === 'production'
+    };
+    
+    res.json(envStatus);
+});
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     safeError('Unhandled error:', err);
@@ -1695,7 +1697,7 @@ app.post('/api/upload/spreadsheet', upload.single('file'), async (req, res) => {
         }
 
         const file = req.file;
-        const fileId = uuidv4();
+        const fileId = crypto.randomBytes(16).toString("hex");
         const filePath = file.path;
         const fileName = file.originalname;
         const fileExtension = path.extname(fileName).toLowerCase();
@@ -1775,7 +1777,7 @@ function parseCSVFile(filePath: string, delimiter = ','): Promise<any[]> {
     return new Promise((resolve, reject) => {
         const results: any[] = [];
         
-        createReadStream(filePath)
+        fs.createReadStream(filePath)
             .pipe(csvParser({ separator: delimiter }))
             .on('data', (data) => results.push(data))
             .on('end', () => resolve(results))
@@ -2014,6 +2016,56 @@ app.get('/api/auth/capture-email', async (req, res) => {
             error: error instanceof Error ? error.message : 'Failed to capture email'
         });
     }
+});
+
+// Environment debug endpoint for Railway deployment
+app.get('/api/debug/env', (req, res) => {
+    const envInfo = {
+        nodeEnv: process.env.NODE_ENV,
+        port: process.env.PORT,
+        hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+        hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+        googleRedirectUri: process.env.GOOGLE_REDIRECT_URI,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+        autoApproveUsers: process.env.AUTO_APPROVE_USERS,
+        currentUrl: `${req.protocol}://${req.get('host')}`,
+        headers: {
+            host: req.get('host'),
+            origin: req.get('origin'),
+            referer: req.get('referer')
+        }
+    };
+    
+    safeLog('🔍 Environment debug requested:', envInfo);
+    res.json(envInfo);
+});
+
+// Authentication status endpoint
+app.get('/api/debug/auth', (req, res) => {
+    const authToken = req.query.authToken as string;
+    
+    const debugInfo = {
+        authTokenProvided: !!authToken,
+        authTokenLength: authToken ? authToken.length : 0,
+        authTokenPreview: authToken ? authToken.substring(0, 8) + '...' : null,
+        totalStoredTokens: authTokens.size,
+        tokenExists: authToken ? authTokens.has(authToken) : false,
+        tokenData: null as any
+    };
+    
+    if (authToken && authTokens.has(authToken)) {
+        const tokenData = authTokens.get(authToken);
+        debugInfo.tokenData = {
+            authenticated: tokenData?.authenticated,
+            hasGoogleCredentials: !!(tokenData?.googleCredentials),
+            hasEmail: !!(tokenData?.email),
+            email: tokenData?.email ? tokenData.email.substring(0, 5) + '***' : null,
+            timestamp: tokenData?.timestamp,
+            age: tokenData ? Math.round((Date.now() - tokenData.timestamp) / 1000 / 60) + ' minutes' : null
+        };
+    }
+    
+    res.json(debugInfo);
 });
 
 // Export the app for integration with main server (must be at the end after all routes)
