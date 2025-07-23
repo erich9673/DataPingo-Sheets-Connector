@@ -158,6 +158,49 @@ app.get('/api/auth/google/url', async (req, res) => {
     }
 });
 
+// Slack installation endpoint for App Store distribution
+app.get('/slack/install', (req, res) => {
+    try {
+        safeLog('🔗 [SLACK INSTALL] Slack install endpoint accessed');
+        
+        // Get the team ID if provided by Slack
+        const teamId = req.query.team;
+        
+        // Build Google OAuth URL with slack_install state
+        const redirectUri = process.env.GOOGLE_REDIRECT_URI || 
+            (process.env.NODE_ENV === 'production' ? 
+                'https://web-production-aafd.up.railway.app/auth/callback' : 
+                'http://localhost:3001/auth/callback');
+        
+        const authUrl = `https://accounts.google.com/o/oauth2/auth?` +
+            `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+            `response_type=code&` +
+            `scope=${encodeURIComponent('https://www.googleapis.com/auth/spreadsheets.readonly')}&` +
+            `access_type=offline&` +
+            `prompt=consent&` +
+            `state=slack_install` +
+            (teamId ? `&team=${teamId}` : '');
+        
+        safeLog(`🔗 [SLACK INSTALL] Redirecting to Google OAuth with state=slack_install`);
+        
+        // Redirect to Google OAuth with slack_install state
+        res.redirect(authUrl);
+        
+    } catch (error) {
+        safeError('❌ [SLACK INSTALL ERROR]:', error);
+        res.status(500).send(`
+            <html>
+                <body>
+                    <h2>❌ Installation Error</h2>
+                    <p>Sorry, there was an error starting the installation process.</p>
+                    <p>Please try again or contact support.</p>
+                </body>
+            </html>
+        `);
+    }
+});
+
 // Landing page for post-Slack installation
 app.get('/installed', (req, res) => {
     res.send(`
@@ -345,21 +388,27 @@ app.get('/auth/callback', async (req, res) => {
         
         // Check if this is a Slack OAuth flow (for App Store distribution)
         if (state === 'slack_install') {
+            safeLog('🔗 [SLACK OAUTH] Processing Slack app installation OAuth callback');
+            
             // For Slack App Store installations, redirect back to Slack
             if (code) {
                 // Process the authorization code
                 try {
                     const result = await googleSheetsService.setAuthCode(code as string);
                     if (result.success) {
+                        safeLog('✅ [SLACK OAUTH] Google OAuth successful, redirecting back to Slack');
                         // Redirect back to Slack with success
-                        return res.redirect(302, 'https://slack.com/app_redirect?app=A095BR1R14J&team=' + (req.query.team || ''));
+                        const teamParam = req.query.team ? `&team=${req.query.team}` : '';
+                        return res.redirect(302, `https://slack.com/app_redirect?app=A095BR1R14J${teamParam}`);
                     }
                 } catch (error) {
-                    safeError('OAuth processing error:', error);
+                    safeError('❌ [SLACK OAUTH] OAuth processing error:', error);
                 }
             }
             // Redirect back to Slack with error
-            return res.redirect(302, 'https://slack.com/app_redirect?app=A095BR1R14J&error=oauth_error');
+            safeError('❌ [SLACK OAUTH] Failed to process authorization, redirecting to Slack with error');
+            const teamParam = req.query.team ? `&team=${req.query.team}` : '';
+            return res.redirect(302, `https://slack.com/app_redirect?app=A095BR1R14J&error=oauth_error${teamParam}`);
         }
         
         // Regular OAuth flow (for direct users)

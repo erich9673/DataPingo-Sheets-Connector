@@ -1951,21 +1951,145 @@ const App: React.FC = () => {
     }
   };
 
+  // New Google-first login screen
+  const renderGoogleLoginScreen = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="logo-section">
+          <div className="brand-header">
+            <div className="unified-brand">
+              <img src="/Sheets Connector for Slack Logo.png" alt="Sheets Connector for Slack" className="unified-logo" />
+              <h1 className="login-title">DataPingo Sheets Connector for Slack</h1>
+            </div>
+          </div>
+          <p>Real-time Google Sheets monitoring with intelligent Slack notifications</p>
+        </div>
+
+        <div className="google-login-section">
+          <div className="login-prompt">
+            <h3>🚀 Get Started in Seconds</h3>
+            <p>Connect your Google account to start monitoring your spreadsheets</p>
+          </div>
+
+          <button 
+            className="google-signin-button" 
+            onClick={handleGoogleConnect}
+            disabled={googleAuthStatus === 'connecting'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" className="google-icon">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            {googleAuthStatus === 'connecting' ? 'Connecting to Google...' : 'Sign in with Google'}
+          </button>
+
+          <div className="security-note">
+            <p>🔒 We only access your spreadsheet data - no personal information</p>
+          </div>
+        </div>
+
+        <div className="info-section">
+          <h3>Why Choose DataPingo?</h3>
+          <ul>
+            <li><img src="/chart.jpg" alt="Monitor" className="feature-icon" />Monitor Google Sheets in real-time</li>
+            <li><img src="/lightning.jpg" alt="Notifications" className="feature-icon" />Get Slack notifications on changes</li>
+            <li><img src="/tools.jpg" alt="Conditions" className="feature-icon" />Set custom alert conditions</li>
+            <li><img src="/chart.jpg" alt="Track" className="feature-icon" />Track multiple spreadsheets</li>
+          </ul>
+        </div>
+
+        <div className="footer-links">
+          <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+          <span className="separator">•</span>
+          <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+          <span className="separator">•</span>
+          <a href="/support" target="_blank" rel="noopener noreferrer">Support</a>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderConnectingToGoogle = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="connecting-section">
+          <div className="connecting-icon">
+            <div className="spinner"></div>
+          </div>
+          <h2>Connecting to Google...</h2>
+          <p>Please complete the authentication in the popup window</p>
+          <p className="connecting-details">This may take a few moments</p>
+          
+          <button 
+            onClick={() => setGoogleAuthStatus('idle')}
+            className="secondary-button"
+            style={{ marginTop: '1rem' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderGoogleAuthError = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="error-section">
+          <div className="error-icon">❌</div>
+          <h2>Connection Failed</h2>
+          <p>We couldn't connect to your Google account</p>
+          {error && (
+            <div className="error-details">
+              <p><strong>Error:</strong> {error}</p>
+            </div>
+          )}
+          
+          <div className="error-actions">
+            <button 
+              onClick={() => {
+                setError('');
+                setGoogleAuthStatus('idle');
+              }}
+              className="primary-button"
+            >
+              Try Again
+            </button>
+            
+            <button 
+              onClick={() => {
+                setError('');
+                setGoogleAuthStatus('idle');
+              }}
+              className="secondary-button"
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Main render logic
   const renderContent = () => {
     if (showMonitoringConfig) {
       return renderMonitoringConfig();
     }
     
-    switch (authStatus) {
-      case 'pending':
-        return renderPendingApproval();
-      case 'approved':
+    // Skip manual approval - go straight to Google login
+    switch (googleAuthStatus) {
+      case 'connected':
         return renderApprovedUser();
-      case 'requesting':
+      case 'connecting':
+        return renderConnectingToGoogle();
+      case 'error':
+        return renderGoogleAuthError();
       case 'idle':
       default:
-        return renderAuthForm();
+        return renderGoogleLoginScreen();
     }
   };
 

@@ -8,8 +8,6 @@ class MonitoringService {
         this.previousValues = new Map();
         this.spreadsheetNames = new Map();
         this.activeJobs = new Map();
-        // Enhanced Activity Logging
-        this.userActivityLog = [];
         // Network-safe caching and rate limiting - Adjusted for faster monitoring
         this.valueCache = new Map();
         this.CACHE_TTL = 30000; // Reduced to 30 seconds for faster monitoring
@@ -20,67 +18,6 @@ class MonitoringService {
         this.pushChannels = new Map();
         this.googleSheetsService = googleSheetsService;
         this.uploadedFiles = uploadedFiles || new Map();
-        // Log service initialization
-        this.logActivity('service_initialized', undefined, undefined, {
-            timestamp: new Date(),
-            service: 'MonitoringService'
-        });
-    }
-    // Enhanced activity logging method
-    logActivity(action, userEmail, userId, details = {}, ipAddress, userAgent) {
-        const logEntry = {
-            timestamp: new Date(),
-            action,
-            userEmail,
-            userId,
-            details,
-            ipAddress,
-            userAgent
-        };
-        this.userActivityLog.push(logEntry);
-        // Keep only last 1000 entries to prevent memory issues
-        if (this.userActivityLog.length > 1000) {
-            this.userActivityLog = this.userActivityLog.slice(-1000);
-        }
-        // Log to console with detailed info
-        const userInfo = userEmail ? `${userEmail} (${userId?.substring(0, 8)}...)` : (userId?.substring(0, 8) + '...' || 'anonymous');
-        (0, logger_1.safeLog)(`📊 [ACTIVITY] ${action.toUpperCase()} by ${userInfo}: ${JSON.stringify(details)}`);
-    }
-    // Get comprehensive activity log for admin dashboard
-    getActivityLog() {
-        return this.userActivityLog.slice().reverse(); // Return most recent first
-    }
-    // Get detailed user statistics
-    getUserStatistics() {
-        const users = new Map();
-        // Collect user data from active jobs
-        for (const job of this.activeJobs.values()) {
-            const key = job.userEmail || job.userId || 'anonymous';
-            if (!users.has(key)) {
-                users.set(key, {
-                    userEmail: job.userEmail,
-                    userId: job.userId,
-                    jobCount: 0,
-                    spreadsheets: new Set(),
-                    lastActivity: job.createdAt
-                });
-            }
-            const userData = users.get(key);
-            userData.jobCount++;
-            userData.spreadsheets.add(job.spreadsheetName || job.sheetId);
-            if (job.lastChecked && job.lastChecked > userData.lastActivity) {
-                userData.lastActivity = job.lastChecked;
-            }
-        }
-        return {
-            totalUsers: users.size,
-            activeJobs: this.activeJobs.size,
-            jobsByUser: Array.from(users.values()).map(user => ({
-                ...user,
-                spreadsheets: Array.from(user.spreadsheets)
-            })),
-            recentActivity: this.userActivityLog.slice(-20).reverse()
-        };
     }
     // Set uploaded files reference (for dependency injection)
     setUploadedFiles(uploadedFiles) {
@@ -349,20 +286,8 @@ class MonitoringService {
                 return false;
         }
     }
-    async startMonitoring(jobId, sheetId, cellRange, frequencyMinutes, webhookUrl, userMention, conditions = [], fileId, userId, userEmail, userCredentials, ipAddress, userAgent) {
+    async startMonitoring(jobId, sheetId, cellRange, frequencyMinutes, webhookUrl, userMention, conditions = [], fileId, userId, userEmail, userCredentials) {
         try {
-            // Log monitoring job creation attempt
-            this.logActivity('monitoring_job_create_attempt', userEmail, userId, {
-                jobId,
-                sheetId: sheetId.substring(0, 20) + '...',
-                cellRange,
-                frequencyMinutes,
-                hasWebhook: !!webhookUrl,
-                webhookDomain: webhookUrl ? new URL(webhookUrl).hostname : undefined,
-                userMention,
-                conditions: conditions.map(c => ({ type: c.type, enabled: c.enabled })),
-                sourceType: fileId ? 'uploaded_file' : 'google_sheets'
-            }, ipAddress, userAgent);
             // Stop existing job if it exists
             if (this.activeJobs.has(jobId)) {
                 await this.stopMonitoring(jobId);
@@ -374,11 +299,6 @@ class MonitoringService {
                 // Get uploaded file info
                 const fileData = this.uploadedFiles.get(fileId);
                 if (!fileData) {
-                    this.logActivity('monitoring_job_create_failed', userEmail, userId, {
-                        jobId,
-                        error: 'Uploaded file not found',
-                        fileId
-                    }, ipAddress, userAgent);
                     return { success: false, error: `Uploaded file not found: ${fileId}` };
                 }
                 spreadsheetName = fileData.name || `File ${fileId}`;
@@ -431,11 +351,6 @@ class MonitoringService {
             }
             catch (error) {
                 (0, logger_1.safeError)('Error getting initial values:', error);
-                this.logActivity('monitoring_job_create_failed', userEmail, userId, {
-                    jobId,
-                    error: 'Failed to get initial values',
-                    errorMessage: error instanceof Error ? error.message : 'Unknown error'
-                }, ipAddress, userAgent);
                 return { success: false, error: `Failed to get initial values: ${error instanceof Error ? error.message : 'Unknown error'}` };
             }
             // Minimum interval adjusted for 30-second monitoring
@@ -457,26 +372,11 @@ class MonitoringService {
                 }
             }, intervalMs);
             this.activeJobs.set(jobId, job);
-            // Log successful monitoring job creation
-            this.logActivity('monitoring_job_created', userEmail, userId, {
-                jobId,
-                spreadsheetName,
-                cellRange,
-                frequencyMinutes,
-                sourceType,
-                conditionsCount: conditions.length,
-                intervalMs,
-                webhookDomain: webhookUrl ? new URL(webhookUrl).hostname : undefined
-            }, ipAddress, userAgent);
             (0, logger_1.safeLog)(`✅ Monitoring started for ${job.spreadsheetName} (${sourceType}) every ${frequencyMinutes} minute(s)`);
             return { success: true };
         }
         catch (error) {
             (0, logger_1.safeError)('Error starting monitoring:', error);
-            this.logActivity('monitoring_job_create_error', userEmail, userId, {
-                jobId,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            }, ipAddress, userAgent);
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
         }
     }
