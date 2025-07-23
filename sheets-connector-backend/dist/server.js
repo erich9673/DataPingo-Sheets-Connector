@@ -787,6 +787,62 @@ app.get('/api/admin/all-users', (req, res) => {
         });
     }
 });
+// Verify auth token endpoint (for frontend token validation)
+app.post('/api/auth/verify-token', async (req, res) => {
+    try {
+        const { authToken } = req.body;
+        if (!authToken) {
+            return res.status(400).json({
+                success: false,
+                error: 'Auth token required'
+            });
+        }
+        // Check if token exists in our auth tokens map
+        const tokenData = authTokens.get(authToken);
+        if (!tokenData) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid auth token'
+            });
+        }
+        // Check if token is expired (24 hours)
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        if (tokenData.timestamp < oneDayAgo) {
+            authTokens.delete(authToken);
+            return res.status(401).json({
+                success: false,
+                error: 'Auth token expired'
+            });
+        }
+        // Get Google auth status using stored credentials
+        let googleAuthStatus = { authenticated: false, hasRefreshToken: false };
+        if (tokenData.googleCredentials) {
+            try {
+                // Temporarily set credentials to check status
+                googleSheetsService.setCredentials(tokenData.googleCredentials);
+                googleAuthStatus = await googleSheetsService.getAuthStatus();
+            }
+            catch (error) {
+                (0, logger_1.safeError)('Error checking Google auth status:', error);
+            }
+        }
+        res.json({
+            success: true,
+            authenticated: tokenData.authenticated && googleAuthStatus.authenticated,
+            hasRefreshToken: tokenData.hasRefreshToken,
+            email: tokenData.email,
+            googleAuth: googleAuthStatus,
+            tokenAge: Math.floor((Date.now() - tokenData.timestamp) / (1000 * 60)) // minutes
+        });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Verify token error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 // Check auth status with manual approval support
 app.get('/api/auth/status', async (req, res) => {
     try {
