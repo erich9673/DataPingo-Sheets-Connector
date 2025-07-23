@@ -285,17 +285,27 @@ export class MonitoringService {
     private checkSingleCellCondition(condition: MonitoringCondition, oldValues: any[][], newValues: any[][], monitoringRange: string): boolean {
         if (!condition.cellRef) return false;
         
+        safeLog(`🔍 Single cell condition check: cellRef=${condition.cellRef}`);
+        
         try {
             const cellPos = this.cellRefToIndices(condition.cellRef);
+            safeLog(`📍 Cell position: row=${cellPos.row}, col=${cellPos.col}`);
+            safeLog(`📊 Array dimensions: newValues.length=${newValues.length}, newValues[0]?.length=${newValues[0]?.length}`);
             
             if (cellPos.row < newValues.length && cellPos.col < (newValues[cellPos.row]?.length || 0)) {
                 const cellValue = newValues[cellPos.row][cellPos.col];
                 const oldCellValue = oldValues[cellPos.row] && oldValues[cellPos.row][cellPos.col];
                 
+                safeLog(`📊 Cell values: old=${oldCellValue}, new=${cellValue}`);
+                
                 if (this.checkLegacyCondition(condition, oldCellValue, cellValue)) {
                     safeLog(`🎯 Single cell condition met: ${condition.cellRef} = ${cellValue}`);
                     return true;
+                } else {
+                    safeLog(`❌ Single cell condition NOT met: ${condition.cellRef} = ${cellValue}`);
                 }
+            } else {
+                safeLog(`❌ Cell position out of bounds: row=${cellPos.row}, col=${cellPos.col}, maxRow=${newValues.length-1}, maxCol=${(newValues[cellPos.row]?.length || 0)-1}`);
             }
         } catch (error) {
             safeError('Error checking single cell condition:', error);
@@ -306,22 +316,39 @@ export class MonitoringService {
 
     // Legacy condition checking for individual values
     private checkLegacyCondition(condition: MonitoringCondition, oldValue: any, newValue: any): boolean {
+        safeLog(`🔍 Legacy condition check: type=${condition.type}, oldValue=${oldValue}, newValue=${newValue}, threshold=${condition.threshold}, value=${condition.value}`);
+        
         switch (condition.type) {
             case 'changed':
-                return oldValue !== newValue;
+                const changedResult = oldValue !== newValue;
+                safeLog(`📋 Changed result: ${changedResult}`);
+                return changedResult;
             case 'greater_than':
                 const numValueGt = parseFloat(String(newValue));
-                return !isNaN(numValueGt) && condition.threshold !== undefined && numValueGt > condition.threshold;
+                const thresholdGt = condition.threshold;
+                const gtResult = !isNaN(numValueGt) && thresholdGt !== undefined && numValueGt > thresholdGt;
+                safeLog(`📊 Greater than check: ${numValueGt} > ${thresholdGt} = ${gtResult} (isNaN: ${isNaN(numValueGt)}, threshold defined: ${thresholdGt !== undefined})`);
+                return gtResult;
             case 'less_than':
                 const numValueLt = parseFloat(String(newValue));
-                return !isNaN(numValueLt) && condition.threshold !== undefined && numValueLt < condition.threshold;
+                const thresholdLt = condition.threshold;
+                const ltResult = !isNaN(numValueLt) && thresholdLt !== undefined && numValueLt < thresholdLt;
+                safeLog(`📊 Less than check: ${numValueLt} < ${thresholdLt} = ${ltResult}`);
+                return ltResult;
             case 'equals':
-                return String(newValue) === String(condition.value);
+                const equalsResult = String(newValue) === String(condition.value);
+                safeLog(`📊 Equals check: "${String(newValue)}" === "${String(condition.value)}" = ${equalsResult}`);
+                return equalsResult;
             case 'not_equals':
-                return String(newValue) !== String(condition.value);
+                const notEqualsResult = String(newValue) !== String(condition.value);
+                safeLog(`📊 Not equals check: "${String(newValue)}" !== "${String(condition.value)}" = ${notEqualsResult}`);
+                return notEqualsResult;
             case 'contains':
-                return condition.value && String(newValue).includes(String(condition.value));
+                const containsResult = condition.value && String(newValue).includes(String(condition.value));
+                safeLog(`📊 Contains check: "${String(newValue)}".includes("${String(condition.value)}") = ${containsResult}`);
+                return containsResult;
             default:
+                safeLog(`❌ Unknown condition type: ${condition.type}`);
                 return false;
         }
     }
