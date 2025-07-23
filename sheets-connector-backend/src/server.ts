@@ -2159,6 +2159,59 @@ app.post('/api/monitoring/check', async (req, res) => {
     }
 });
 
+// Real-time monitoring status endpoint
+app.get('/api/monitoring/status', (req, res) => {
+    try {
+        const authToken = req.query.authToken;
+        
+        if (!authToken) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Auth token required' 
+            });
+        }
+
+        const activeJobs = monitoringService.getActiveJobs();
+        const userJobs = monitoringService.getActiveJobsForCurrentUser(authToken as string);
+        
+        const status = {
+            totalActiveJobs: activeJobs.length,
+            userActiveJobs: userJobs.length,
+            jobs: userJobs.map(job => ({
+                id: job.id,
+                spreadsheetName: job.spreadsheetName,
+                cellRange: job.cellRange,
+                frequencyMinutes: job.frequencyMinutes,
+                isActive: job.isActive,
+                hasInterval: !!job.intervalId,
+                lastChecked: job.lastChecked,
+                sourceType: job.sourceType,
+                webhookUrl: job.webhookUrl.substring(0, 50) + '...',
+                conditions: job.conditions,
+                createdAt: job.createdAt
+            })),
+            serverTime: new Date().toISOString(),
+            uptime: process.uptime(),
+            memoryUsage: process.memoryUsage()
+        };
+        
+        safeLog(`📊 Monitoring status requested by ${String(authToken).substring(0, 8)}...`);
+        safeLog(`   Active jobs: ${status.totalActiveJobs}, User jobs: ${status.userActiveJobs}`);
+        
+        res.json({
+            success: true,
+            status
+        });
+        
+    } catch (error) {
+        safeError('Error getting monitoring status:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
 // Job persistence file path
 const JOBS_PERSISTENCE_FILE = path.join(__dirname, '../data/active-jobs.json');
 
