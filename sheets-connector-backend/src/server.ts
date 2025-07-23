@@ -1214,6 +1214,8 @@ app.post('/api/monitoring/start', async (req, res) => {
         );
 
         if (result.success) {
+            // Save jobs to persistence after successful creation
+            saveJobsToPersistence();
             res.json({ success: true, jobId });
         } else {
             res.status(500).json(result);
@@ -1692,10 +1694,18 @@ app.get('/beta', (req, res) => {
 
 // Start server only if not being imported
 if (!process.env.SKIP_SERVER_START) {
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
         safeLog(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
         safeLog(`📊 API Base URL: http://localhost:${PORT}/api`);
         safeLog(`🔍 Health Check: http://localhost:${PORT}/health`);
+        
+        // Load persisted monitoring jobs after server starts
+        await loadPersistedJobs();
+        
+        // Set up periodic job persistence saving
+        setInterval(() => {
+            saveJobsToPersistence();
+        }, 10 * 60 * 1000); // Save every 10 minutes
     });
 }
 
@@ -2080,6 +2090,154 @@ app.get('/api/debug/auth', (req, res) => {
     
     res.json(debugInfo);
 });
+
+// Manual monitoring check endpoint for debugging
+app.post('/api/monitoring/check', async (req, res) => {
+    try {
+        const authToken = req.query.authToken || req.body.authToken;
+        
+        if (!authToken) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Auth token required for monitoring check' 
+            });
+        }
+
+        const activeJobs = monitoringService.getActiveJobs();
+        const userJobs = monitoringService.getActiveJobsForCurrentUser(authToken as string);
+        
+        safeLog(`🧪 Manual monitoring check requested by ${authToken.substring(0, 8)}...`);
+        safeLog(`   Total active jobs: ${activeJobs.length}`);
+        safeLog(`   User jobs: ${userJobs.length}`);
+        
+        if (userJobs.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No active monitoring jobs found for user',
+                totalJobs: activeJobs.length,
+                userJobs: 0
+            });
+        }
+
+        // Manually check each user job
+        const results = [];
+        for (const job of userJobs) {
+            try {
+                safeLog(`🔍 Manually checking job ${job.id} (${job.spreadsheetName})`);
+                const checkResult = await monitoringService.checkForChangesPublic(job);
+                results.push({
+                    jobId: job.id,
+                    spreadsheet: job.spreadsheetName,
+                    cellRange: job.cellRange,
+                    lastChecked: job.lastChecked,
+                    result: checkResult
+                });
+            } catch (error) {
+                safeError(`Error checking job ${job.id}:`, error);
+                results.push({
+                    jobId: job.id,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            message: 'Manual monitoring check completed',
+            totalJobs: activeJobs.length,
+            userJobs: userJobs.length,
+            results
+
+        });
+        
+    } catch (error) {
+        safeError('Manual monitoring check error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Job persistence file path
+const JOBS_PERSISTENCE_FILE = path.join(__dirname, '../data/active-jobs.json');
+
+// Ensure data directory exists
+const dataDir = path.dirname(JOBS_PERSISTENCE_FILE);
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Load persisted jobs on server start
+const loadPersistedJobs = async () => {
+    try {
+        if (fs.existsSync(JOBS_PERSISTENCE_FILE)) {
+            const data = fs.readFileSync(JOBS_PERSISTENCE_FILE, 'utf8');
+            const persistedJobs = JSON.parse(data);
+            
+            safeLog(`📂 Loading ${persistedJobs.length} persisted monitoring jobs...`);
+            
+            for (const jobData of persistedJobs) {
+                try {
+                    // Restart the monitoring job
+                    const result = await monitoringService.startMonitoring(
+                        jobData.id,
+                        jobData.sheetId,
+                        jobData.cellRange,
+                        jobData.frequencyMinutes,
+                        jobData.webhookUrl,
+                        jobData.userMention,
+                        jobData.conditions,
+                        jobData.fileId,
+                        jobData.userId,
+                        jobData.userEmail,
+                        jobData.userCredentials
+                    );
+                    
+                    if (result.success) {
+                        safeLog(`✅ Restored monitoring job: ${jobData.id} (${jobData.spreadsheetName})`);
+                    } else {
+                        safeError(`❌ Failed to restore job ${jobData.id}:`, result.error);
+                    }
+                } catch (error) {
+                    safeError(`Error restoring job ${jobData.id}:`, error);
+                }
+            }
+        } else {
+            safeLog('📂 No persisted jobs file found, starting fresh');
+        }
+    } catch (error) {
+        safeError('Error loading persisted jobs:', error);
+    }
+};
+
+// Save active jobs to persistence file
+const saveJobsToPersistence = () => {
+    try {
+        const activeJobs = monitoringService.getActiveJobs();
+        const jobsToSave = activeJobs.map(job => ({
+            id: job.id,
+            sheetId: job.sheetId,
+            cellRange: job.cellRange,
+            frequencyMinutes: job.frequencyMinutes,
+            webhookUrl: job.webhookUrl,
+            userMention: job.userMention,
+            conditions: job.conditions,
+            fileId: job.fileId,
+            userId: job.userId,
+            userEmail: job.userEmail,
+            userCredentials: job.userCredentials,
+            spreadsheetName: job.spreadsheetName,
+            sourceType: job.sourceType,
+            createdAt: job.createdAt
+        }));
+        
+        fs.writeFileSync(JOBS_PERSISTENCE_FILE, JSON.stringify(jobsToSave, null, 2));
+        safeLog(`💾 Saved ${jobsToSave.length} jobs to persistence file`);
+    } catch (error) {
+        safeError('Error saving jobs to persistence:', error);
+    }
+};
 
 // Export the app for integration with main server (must be at the end after all routes)
 module.exports = app;
