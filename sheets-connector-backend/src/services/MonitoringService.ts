@@ -417,7 +417,16 @@ export class MonitoringService {
             
             // Simple interval - no complex scheduling
             job.intervalId = setInterval(async () => {
-                await this.checkForChanges(job);
+                safeLog(`🔄 [INTERVAL TRIGGERED] Checking job ${jobId} (${job.spreadsheetName}) - every ${frequencyMinutes} minutes`);
+                const startTime = Date.now();
+                try {
+                    await this.checkForChanges(job);
+                    const duration = Date.now() - startTime;
+                    safeLog(`✅ [INTERVAL COMPLETE] Job ${jobId} check completed in ${duration}ms`);
+                } catch (error) {
+                    const duration = Date.now() - startTime;
+                    safeError(`❌ [INTERVAL ERROR] Job ${jobId} check failed after ${duration}ms:`, error);
+                }
             }, intervalMs);
             
             this.activeJobs.set(jobId, job);
@@ -434,17 +443,22 @@ export class MonitoringService {
     private async checkForChanges(job: MonitoringJob): Promise<void> {
         const key = job.sourceType === 'uploaded_file' ? `file:${job.fileId}:${job.cellRange}` : `${job.sheetId}:${job.cellRange}`;
         
+        safeLog(`🔍 [CHECK START] Job ${job.id} - ${job.spreadsheetName} (${job.sourceType})`);
+        safeLog(`    📋 Range: ${job.cellRange}`);
+        safeLog(`    🔗 Webhook: ${job.webhookUrl.substring(0, 50)}...`);
+        safeLog(`    👤 User: ${job.userEmail || job.userId || 'Unknown'}`);
+        
         try {
             let currentValues: any[][];
             
             if (job.sourceType === 'uploaded_file') {
                 // For uploaded files, get values directly (no network calls or caching needed)
                 currentValues = await this.getValues(job);
-                safeLog(`📋 Checking uploaded file data for ${job.spreadsheetName}`);
+                safeLog(`📋 [FILE DATA] Retrieved uploaded file data for ${job.spreadsheetName}: ${JSON.stringify(currentValues).substring(0, 100)}...`);
             } else {
                 // For Google Sheets, use existing network-safe logic
                 if (this.apiInProgress.has(key)) {
-                    safeLog(`⏳ API call already in progress for ${job.spreadsheetName}, skipping`);
+                    safeLog(`⏳ [SKIP] API call already in progress for ${job.spreadsheetName}, skipping`);
                     return;
                 }
 
@@ -455,14 +469,14 @@ export class MonitoringService {
                 if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
                     // Use cached values - no network call needed
                     currentValues = cached.values;
-                    safeLog(`📋 Using cached values for ${job.spreadsheetName}`);
+                    safeLog(`📋 [CACHED] Using cached values for ${job.spreadsheetName}: ${JSON.stringify(currentValues).substring(0, 100)}...`);
                 } else {
                     // Check if enough time has passed since last API call
                     const lastCall = this.lastApiCall.get(key) || 0;
                     const timeSinceLastCall = now - lastCall;
                     
                     if (timeSinceLastCall < this.MIN_API_INTERVAL) {
-                        safeLog(`🚫 Rate limiting: waiting ${Math.ceil((this.MIN_API_INTERVAL - timeSinceLastCall) / 1000)}s for ${job.spreadsheetName}`);
+                        safeLog(`🚫 [RATE LIMIT] Waiting ${Math.ceil((this.MIN_API_INTERVAL - timeSinceLastCall) / 1000)}s for ${job.spreadsheetName}`);
                         return; // Skip this check to prevent network overload
                     }
 
@@ -470,6 +484,7 @@ export class MonitoringService {
                     this.apiInProgress.add(key);
                     
                     try {
+                        safeLog(`🌐 [API CALL] Fetching fresh data for ${job.spreadsheetName}...`);
                         // Get fresh values with network-safe timeout
                         currentValues = await Promise.race([
                             this.getValues(job),
@@ -480,7 +495,7 @@ export class MonitoringService {
                         this.valueCache.set(key, { values: currentValues, timestamp: now });
                         this.lastApiCall.set(key, now);
                         
-                        safeLog(`🌐 Fresh data fetched for ${job.spreadsheetName}`);
+                        safeLog(`🌐 [API SUCCESS] Fresh data fetched for ${job.spreadsheetName}: ${JSON.stringify(currentValues).substring(0, 100)}...`);
                     } finally {
                         // Always remove from in-progress set
                         this.apiInProgress.delete(key);
@@ -491,49 +506,62 @@ export class MonitoringService {
             const previousValues = this.previousValues.get(key);
             job.lastChecked = new Date();
             
-            // Debug logging
-            safeLog(`🔍 Checking for changes in ${job.spreadsheetName}:`);
-            safeLog(`   Previous values exist: ${!!previousValues}`);
-            safeLog(`   Current values: ${JSON.stringify(currentValues).substring(0, 200)}...`);
-            if (previousValues) {
-                safeLog(`   Previous values: ${JSON.stringify(previousValues).substring(0, 200)}...`);
-            }
+            // Enhanced debug logging for value comparison
+            safeLog(`� [VALUE COMPARISON] Job ${job.id} - ${job.spreadsheetName}:`);
+            safeLog(`    📝 Current values: ${JSON.stringify(currentValues)}`);
+            safeLog(`    📝 Previous values: ${JSON.stringify(previousValues)}`);
+            safeLog(`    🔍 Has previous values: ${!!previousValues}`);
+            safeLog(`    🔍 Values are different: ${previousValues ? this.hasValuesChanged(previousValues, currentValues) : 'N/A (no previous values)'}`);
+            
             
             if (previousValues && this.hasValuesChanged(previousValues, currentValues)) {
-                safeLog(`� CHANGES DETECTED in ${job.spreadsheetName} (${job.sourceType})`);
+                safeLog(`🚨 [CHANGE DETECTED] Changes found in ${job.spreadsheetName} (${job.sourceType})`);
                 
                 // Find changes - simplified
                 const changes = this.findChangedCells(previousValues, currentValues, job.cellRange);
-                safeLog(`   Found ${changes.length} changed cells:`, changes);
+                safeLog(`    📍 Changed cells: ${changes.length} cells changed`);
+                for (let i = 0; i < changes.length; i++) {
+                    const change = changes[i];
+                    safeLog(`        Cell ${i + 1}: ${change.cellRange} changed from "${change.oldValue}" to "${change.newValue}"`);
+                }
                 
                 // Send notification with enhanced condition checking
                 if (changes.length > 0) {
-                    safeLog(`📤 Checking conditions for ${job.spreadsheetName}...`);
+                    const firstChange = changes[0];
+                    safeLog(`🎯 [CONDITION CHECK] Checking conditions for job ${job.id}:`);
+                    safeLog(`    📋 Conditions: ${JSON.stringify(job.conditions)}`);
                     
                     // Check if any condition is met (either cell-specific or range-based)
                     const shouldSendNotification = this.shouldNotify(
-                        changes[0].oldValue, 
-                        changes[0].newValue, 
+                        firstChange.oldValue, 
+                        firstChange.newValue, 
                         job.conditions,
                         previousValues,
                         currentValues,
                         job.cellRange
                     );
                     
+                    safeLog(`    🎯 Should notify: ${shouldSendNotification}`);
+                    
                     if (shouldSendNotification) {
-                        safeLog(`📤 Conditions met (or overridden), sending notification for ${job.spreadsheetName}...`);
-                        await this.sendNotification(job, changes[0], previousValues, currentValues);
-                        safeLog(`✅ Notification sent for ${job.spreadsheetName}`);
+                        safeLog(`📤 [NOTIFICATION] Conditions met, sending notification for ${job.spreadsheetName}...`);
+                        await this.sendNotification(job, firstChange, previousValues, currentValues);
+                        safeLog(`✅ [NOTIFICATION SUCCESS] Notification sent for ${job.spreadsheetName}`);
                     } else {
-                        safeLog(`🚫 Conditions not met, skipping notification for ${job.spreadsheetName}`);
+                        safeLog(`🚫 [NOTIFICATION SKIP] Conditions not met, skipping notification for ${job.spreadsheetName}`);
                     }
                 }
                 
                 // Update stored values
                 this.previousValues.set(key, currentValues);
                 job.currentValues = currentValues;
+                safeLog(`💾 [STORAGE] Updated stored values for ${job.spreadsheetName}`);
+            } else if (!previousValues) {
+                safeLog(`📥 [FIRST RUN] No previous values for ${job.spreadsheetName}, storing initial values`);
+                this.previousValues.set(key, currentValues);
+                job.currentValues = currentValues;
             } else {
-                safeLog(`✅ No changes detected in ${job.spreadsheetName}`);
+                safeLog(`✅ [NO CHANGE] No changes detected in ${job.spreadsheetName}`);
             }
             
         } catch (error) {
@@ -624,13 +652,17 @@ export class MonitoringService {
     // Enhanced notification sending with full data context
     private async sendNotification(job: MonitoringJob, change: {cellRange: string, oldValue: any, newValue: any}, oldValues?: any[][], newValues?: any[][]): Promise<void> {
         try {
-            safeLog(`🔔 Processing notification for change: ${change.oldValue} → ${change.newValue}`);
+            safeLog(`🔔 [NOTIFICATION START] Processing notification for job ${job.id}`);
+            safeLog(`    📍 Change: Cell ${change.cellRange} changed from "${change.oldValue}" to "${change.newValue}"`);
+            safeLog(`    🏢 Spreadsheet: ${job.spreadsheetName || 'Unknown'}`);
+            safeLog(`    🔗 Webhook URL: ${job.webhookUrl.substring(0, 60)}...`);
+            safeLog(`    👤 User mention: ${job.userMention || 'None'}`);
 
             const spreadsheetName = job.spreadsheetName || this.spreadsheetNames.get(job.sheetId) || 'Unknown Spreadsheet';
-            safeLog(`📤 Creating Slack service with webhook: ${job.webhookUrl.substring(0, 50)}...`);
+            safeLog(`📤 [SLACK SERVICE] Creating Slack service instance...`);
             const slackService = new SlackService(job.webhookUrl);
             
-            safeLog(`📩 Sending notification to Slack...`);
+            safeLog(`📩 [SLACK SEND] Calling Slack API to send notification...`);
             
             // Simple notification - no complex retry logic that can cause delays
             const result = await slackService.sendNotification(
@@ -643,13 +675,15 @@ export class MonitoringService {
                 job.userMention || undefined
             );
             
+            safeLog(`📊 [SLACK RESULT] Slack API response:`, result);
+            
             if (result.success) {
-                safeLog(`✅ Notification sent successfully for ${change.cellRange}`);
+                safeLog(`✅ [NOTIFICATION SUCCESS] Notification sent successfully for ${change.cellRange}`);
             } else {
-                safeError(`❌ Notification failed: ${result.error}`);
+                safeError(`❌ [NOTIFICATION FAILED] Notification failed: ${result.error}`);
             }
         } catch (error) {
-            safeError('Error sending notification:', error);
+            safeError(`💥 [NOTIFICATION ERROR] Error sending notification for job ${job.id}:`, error);
         }
     }
 
