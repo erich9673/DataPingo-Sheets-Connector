@@ -16,9 +16,10 @@ const App: React.FC = () => {
   const [selectedSheet, setSelectedSheet] = useState<any>(null);
   const [availableSheetTabs, setAvailableSheetTabs] = useState<any[]>([]);
   
-  // Slack configuration
-  const [slackWebhook, setSlackWebhook] = useState('');
-  const [slackConnected, setSlackConnected] = useState(false);
+  // Platform configuration
+  const [selectedPlatform, setSelectedPlatform] = useState<'slack' | 'teams' | 'discord'>('slack');
+  const [platformWebhook, setPlatformWebhook] = useState('');
+  const [platformConnected, setPlatformConnected] = useState(false);
   
   // Monitoring state
   const [showMonitoringConfig, setShowMonitoringConfig] = useState(false);
@@ -251,27 +252,39 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSlackTest = async () => {
+  const handleWebhookTest = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/slack/test-connection`, {
+      const platformEndpoints = {
+        slack: 'slack',
+        teams: 'teams', 
+        discord: 'discord'
+      };
+      
+      const endpoint = platformEndpoints[selectedPlatform];
+      const response = await fetch(`${API_BASE_URL}/api/${endpoint}/test-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify({ webhookUrl: slackWebhook })
+        body: JSON.stringify({ webhookUrl: platformWebhook })
       });
       
       const data = await response.json();
       if (data.success) {
-        setSlackConnected(true);
-        alert('✅ Slack connection successful! Check your Slack channel for the test message.');
+        setPlatformConnected(true);
+        const platformNames = {
+          slack: 'Slack',
+          teams: 'Microsoft Teams',
+          discord: 'Discord'
+        };
+        alert(`✅ ${platformNames[selectedPlatform]} connection successful! Check your ${platformNames[selectedPlatform].toLowerCase()} channel for the test message.`);
       } else {
-        alert('❌ Slack connection failed: ' + (data.error || 'Unknown error'));
+        alert(`❌ ${selectedPlatform} connection failed: ` + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Slack test error:', error);
-      alert('❌ Network error testing Slack connection');
+      console.error(`${selectedPlatform} test error:`, error);
+      alert(`❌ Network error testing ${selectedPlatform} connection`);
     }
   };
 
@@ -420,7 +433,7 @@ const App: React.FC = () => {
         body: JSON.stringify({
           sheetId: selectedSheetForMonitoring.id,
           cellRange: cellRange.trim(),
-          webhookUrl: slackWebhook,
+          webhookUrl: platformWebhook,
           frequencyMinutes: frequencyMinutes,
           userMention: userMention.trim(),
           conditions: conditions,
@@ -619,14 +632,6 @@ const App: React.FC = () => {
           </div>
           <div className="user-info">
             <span>👤 {userEmail}</span>
-            <button 
-              onClick={clearAllUserData}
-              className="datapingo-button secondary"
-              style={{ marginRight: '0.5rem' }}
-              title="Clear all data for fresh login testing"
-            >
-              🧹 Clear Data
-            </button>
             <button 
               onClick={async () => {
                 // Get auth token before clearing it
@@ -1120,12 +1125,53 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Slack Configuration */}
-          {/* Slack Integration */}
+          {/* Platform Integration */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 'bold', fontSize: '1rem' }}>
-              💬 Slack Integration
+              💬 Platform Integration
             </label>
+            
+            {/* Platform Selector */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.5rem',
+              marginBottom: '1rem',
+              padding: '0.5rem',
+              background: '#f8fafc',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0'
+            }}>
+              {(['slack', 'teams', 'discord'] as const).map((platform) => (
+                <button
+                  key={platform}
+                  onClick={() => {
+                    setSelectedPlatform(platform);
+                    setPlatformWebhook('');
+                    setPlatformConnected(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    background: selectedPlatform === platform ? 
+                      (platform === 'slack' ? '#4A154B' : 
+                       platform === 'teams' ? '#6264A7' : '#5865F2') : '#ffffff',
+                    color: selectedPlatform === platform ? 'white' : '#64748b',
+                    border: selectedPlatform === platform ? 'none' : '1px solid #e2e8f0'
+                  }}
+                >
+                  {platform === 'slack' && '💬 Slack'}
+                  {platform === 'teams' && '💼 Teams'}
+                  {platform === 'discord' && '🎮 Discord'}
+                </button>
+              ))}
+            </div>
+            
+            {/* Webhook Input */}
             <div style={{ 
               display: 'flex', 
               gap: '0.5rem',
@@ -1136,9 +1182,13 @@ const App: React.FC = () => {
             }}>
               <input
                 type="url"
-                value={slackWebhook}
-                onChange={(e) => setSlackWebhook(e.target.value)}
-                placeholder="https://hooks.slack.com/services/..."
+                value={platformWebhook}
+                onChange={(e) => setPlatformWebhook(e.target.value)}
+                placeholder={
+                  selectedPlatform === 'slack' ? 'https://hooks.slack.com/services/...' :
+                  selectedPlatform === 'teams' ? 'https://your-tenant.webhook.office.com/...' :
+                  'https://discord.com/api/webhooks/...'
+                }
                 style={{
                   flex: 1,
                   padding: '1rem',
@@ -1153,7 +1203,7 @@ const App: React.FC = () => {
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               />
               <button
-                onClick={handleSlackTest}
+                onClick={handleWebhookTest}
                 className="datapingo-button accent"
                 style={{ 
                   padding: '1rem 1.5rem',
@@ -1165,7 +1215,9 @@ const App: React.FC = () => {
                 🧪 Test
               </button>
             </div>
-            {slackConnected ? (
+            
+            {/* Connection Status */}
+            {platformConnected ? (
               <div style={{ 
                 marginTop: '0.75rem', 
                 padding: '0.75rem', 
@@ -1177,51 +1229,149 @@ const App: React.FC = () => {
                 gap: '0.5rem'
               }}>
                 <span style={{ fontSize: '1.1rem' }}>✅</span>
-                <span style={{ color: '#155724', fontWeight: '500' }}>Slack connection verified!</span>
+                <span style={{ color: '#155724', fontWeight: '500' }}>
+                  {selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)} connection verified!
+                </span>
               </div>
             ) : (
               <div className="help-text" style={{ marginTop: '0.75rem' }}>
-                <details>
-                  <summary>🤔 How to get a Slack Webhook URL?</summary>
-                  <div className="help-content">
-                    <h4>📋 Step-by-Step Guide:</h4>
-                    <ol>
-                      <li>
-                        <strong>Go to Slack Apps:</strong>
-                        <br />Visit <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">api.slack.com/apps</a> and sign in to your Slack workspace
-                      </li>
-                      <li>
-                        <strong>Create or Select App:</strong>
-                        <br />Click "Create New App" → "From scratch" → Name it "DataPingo Sheets Connector"
-                      </li>
-                      <li>
-                        <strong>Enable Incoming Webhooks:</strong>
-                        <br />In your app settings, go to "Incoming Webhooks" and toggle "Activate Incoming Webhooks" to ON
-                      </li>
-                      <li>
-                        <strong>Add Webhook to Workspace:</strong>
-                        <br />Click "Add New Webhook to Workspace" and choose the channel where you want notifications
-                      </li>
-                      <li>
-                        <strong>Copy Webhook URL:</strong>
-                        <br />Copy the webhook URL that starts with <code>https://hooks.slack.com/services/...</code>
-                      </li>
-                    </ol>
-                    
-                    <div className="help-note">
-                      <strong>� Pro Tip:</strong> Create a dedicated channel like <code>#sheets-alerts</code> for your notifications to keep them organized!
+                {selectedPlatform === 'slack' && (
+                  <details>
+                    <summary>🤔 How to get a Slack Webhook URL?</summary>
+                    <div className="help-content">
+                      <h4>📋 Step-by-Step Guide:</h4>
+                      <ol>
+                        <li>
+                          <strong>Go to Slack Apps:</strong>
+                          <br />Visit <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">api.slack.com/apps</a> and sign in to your Slack workspace
+                        </li>
+                        <li>
+                          <strong>Create or Select App:</strong>
+                          <br />Click "Create New App" → "From scratch" → Name it "DataPingo Sheets Connector"
+                        </li>
+                        <li>
+                          <strong>Enable Incoming Webhooks:</strong>
+                          <br />In your app settings, go to "Incoming Webhooks" and toggle "Activate Incoming Webhooks" to ON
+                        </li>
+                        <li>
+                          <strong>Add Webhook to Workspace:</strong>
+                          <br />Click "Add New Webhook to Workspace" and choose the channel where you want notifications
+                        </li>
+                        <li>
+                          <strong>Copy Webhook URL:</strong>
+                          <br />Copy the webhook URL that starts with <code>https://hooks.slack.com/services/...</code>
+                        </li>
+                      </ol>
+                      
+                      <div className="help-note">
+                        <strong>💡 Pro Tip:</strong> Create a dedicated channel like <code>#sheets-alerts</code> for your notifications to keep them organized!
+                      </div>
+                      
+                      <div className="help-links">
+                        <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer" className="help-link">
+                          📖 Official Slack Documentation
+                        </a>
+                        <a href="https://slack.com/help/articles/115005265063-Incoming-webhooks-for-Slack" target="_blank" rel="noopener noreferrer" className="help-link">
+                          🎥 Slack Help Guide
+                        </a>
+                      </div>
                     </div>
-                    
-                    <div className="help-links">
-                      <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer" className="help-link">
-                        📖 Official Slack Documentation
-                      </a>
-                      <a href="https://slack.com/help/articles/115005265063-Incoming-webhooks-for-Slack" target="_blank" rel="noopener noreferrer" className="help-link">
-                        🎥 Slack Help Guide
-                      </a>
+                  </details>
+                )}
+                
+                {selectedPlatform === 'teams' && (
+                  <details>
+                    <summary>🤔 How to get a Microsoft Teams Webhook URL?</summary>
+                    <div className="help-content">
+                      <h4>📋 Step-by-Step Visual Guide:</h4>
+                      <ol>
+                        <li>
+                          <strong>Step 1: Open Teams Apps</strong>
+                          <br />In your Microsoft Teams channel, click the "Apps" button below
+                          <br />
+                          <img src="/teams-instructions/teams-step1-openapps.png" alt="Open Teams Apps" style={{maxWidth: '100%', marginTop: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px'}} />
+                        </li>
+                        <li>
+                          <strong>Step 2: Find Incoming Webhook</strong>
+                          <br />Search for "Incoming Webhook" in the apps and install it
+                          <br />
+                          <img src="/teams-instructions/teams-step2-findincomingwebhook.png" alt="Find Incoming Webhook" style={{maxWidth: '100%', marginTop: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px'}} />
+                        </li>
+                        <li>
+                          <strong>Step 3: Select Channel</strong>
+                          <br />Choose the channel where you want to receive notifications
+                          <br />
+                          <img src="/teams-instructions/teams-step3-selectchannel.png" alt="Select Channel" style={{maxWidth: '100%', marginTop: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px'}} />
+                        </li>
+                        <li>
+                          <strong>Step 4: Name the App & Copy the Webhook</strong>
+                          <br />Give your webhook a name (e.g., "Sheets Connector") and click the copy button for the webhook
+                          <br />
+                          <img src="/teams-instructions/teams-step4-nameappgetwebhook.png" alt="Name App and Get Webhook" style={{maxWidth: '100%', marginTop: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px'}} />
+                        </li>
+                        <li>
+                          <strong>Step 5: Copy Webhook URL</strong>
+                          <br />Copy the webhook URL that starts with https://your-tenant.webhook.office.com/... here and start monitoring!
+                          <br />
+                          <img src="/teams-instructions/teams-step5-pastewebhook.png" alt="Copy Webhook URL" style={{maxWidth: '100%', marginTop: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px'}} />
+                        </li>
+                        <li>
+                          <strong>Step 6: Get Alerts!</strong>
+                          <br />Start receiving Google Sheets notification on Microsoft Team
+                          <br />
+                          <img src="/teams-instructions/teams-step6-getalerts.png" alt="Get Alerts" style={{maxWidth: '100%', marginTop: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px'}} />
+                        </li>
+                      </ol>
+                      
+                      <div className="help-note">
+                        <strong>💡 Pro Tip:</strong> Create a dedicated #sheets-notifications channel to keep your Google Sheets updates organized and prevent notification overload in your main channels!
+                      </div>
+                      
+                      <div className="help-links">
+                        <a href="https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook" target="_blank" rel="noopener noreferrer" className="help-link">
+                          📖 Official Teams Documentation
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                </details>
+                  </details>
+                )}
+                
+                {selectedPlatform === 'discord' && (
+                  <details>
+                    <summary>🤔 How to get a Discord Webhook URL?</summary>
+                    <div className="help-content">
+                      <h4>📋 Step-by-Step Guide:</h4>
+                      <ol>
+                        <li>
+                          <strong>Open Discord Channel:</strong>
+                          <br />Go to the Discord channel where you want to receive notifications
+                        </li>
+                        <li>
+                          <strong>Channel Settings:</strong>
+                          <br />Right-click the channel → "Edit Channel" → "Integrations" → "Webhooks"
+                        </li>
+                        <li>
+                          <strong>Create Webhook:</strong>
+                          <br />Click "New Webhook" → Name it "Sheets Connector" → Choose the channel
+                        </li>
+                        <li>
+                          <strong>Copy Webhook URL:</strong>
+                          <br />Click "Copy Webhook URL" to get the URL starting with <code>https://discord.com/api/webhooks/...</code>
+                        </li>
+                      </ol>
+                      
+                      <div className="help-note">
+                        <strong>💡 Pro Tip:</strong> You can customize the webhook's name and avatar in the settings!
+                      </div>
+                      
+                      <div className="help-links">
+                        <a href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks" target="_blank" rel="noopener noreferrer" className="help-link">
+                          📖 Official Discord Documentation
+                        </a>
+                      </div>
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>
@@ -1812,7 +1962,7 @@ const App: React.FC = () => {
     
     return hasSpreadsheet && 
            hasValidConditions && 
-           slackWebhook.trim().length > 0;
+           platformWebhook.trim().length > 0;
   };
 
   const extractSheetIdFromUrl = (url: string): string | null => {
@@ -1837,8 +1987,8 @@ const App: React.FC = () => {
         return;
       }
       
-      if (!slackWebhook.trim()) {
-        alert('Please provide a Slack webhook URL');
+      if (!platformWebhook.trim()) {
+        alert(`Please provide a ${selectedPlatform} webhook URL`);
         return;
       }
 
@@ -1905,7 +2055,7 @@ const App: React.FC = () => {
         body: JSON.stringify({
           sheetId: sheetId,
           cellRange: fullRange,
-          webhookUrl: slackWebhook,
+          webhookUrl: platformWebhook,
           frequencyMinutes: frequencyMinutes,
           userMention: userMention,
           conditions: conditions,
@@ -2102,8 +2252,8 @@ const App: React.FC = () => {
     setGoogleSheets([]);
     setSelectedSheet(null);
     setAvailableSheetTabs([]);
-    setSlackWebhook('');
-    setSlackConnected(false);
+    setPlatformWebhook('');
+    setPlatformConnected(false);
     setMonitoringJobs([]);
     setSelectedSheetForMonitoring(null);
     setManualSpreadsheetUrl('');

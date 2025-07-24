@@ -376,6 +376,19 @@ export class MonitoringService {
                 await this.stopMonitoring(jobId);
             }
             
+            // DUPLICATE PREVENTION: Check for existing jobs with same parameters
+            const existingJob = Array.from(this.activeJobs.values()).find(job => 
+                job.sheetId === sheetId && 
+                job.cellRange === cellRange && 
+                job.webhookUrl === webhookUrl &&
+                (job.userEmail === userEmail || job.userId === userId)
+            );
+            
+            if (existingJob) {
+                safeLog(`⚠️ Preventing duplicate job creation. Existing job ${existingJob.id} already monitors same sheet/range/webhook`);
+                return { success: false, error: `Duplicate job prevented: Job ${existingJob.id} already monitors this sheet/range combination` };
+            }
+            
             // Determine source type
             const sourceType = fileId ? 'uploaded_file' : 'google_sheets';
             let spreadsheetName = sheetId;
@@ -690,23 +703,120 @@ export class MonitoringService {
             safeLog(`    👤 User mention: ${job.userMention || 'None'}`);
 
             const spreadsheetName = job.spreadsheetName || this.spreadsheetNames.get(job.sheetId) || 'Unknown Spreadsheet';
-            safeLog(`📤 [SLACK SERVICE] Creating Slack service instance...`);
-            const slackService = new SlackService(job.webhookUrl);
             
-            safeLog(`📩 [SLACK SEND] Calling Slack API to send notification...`);
+            // Detect webhook type and use appropriate service
+            let result: { success: boolean; error?: string };
             
-            // Simple notification - no complex retry logic that can cause delays
-            const result = await slackService.sendNotification(
-                'Google Sheets change detected',
-                job.sheetId,
-                change.cellRange,
-                change.oldValue,
-                change.newValue,
-                spreadsheetName,
-                job.userMention || undefined
-            );
+            if (job.webhookUrl.includes('discord.com/api/webhooks')) {
+                safeLog(`📤 [DISCORD SERVICE] Using Discord service for webhook...`);
+                const { DiscordService } = await import('./DiscordService');
+                
+                // Create Discord message format with Google Sheets link
+                const googleSheetsUrl = `https://docs.google.com/spreadsheets/d/${job.sheetId}/edit`;
+                
+                // Convert @channel to Discord format (remove bell emoji)
+                let discordMention = '';
+                if (job.userMention) {
+                    if (job.userMention.includes('@channel')) {
+                        discordMention = `\n\n@everyone`; // Discord uses @everyone instead of @channel
+                    } else if (job.userMention.includes('@here')) {
+                        discordMention = `\n\n@here`; // @here works in Discord
+                    } else {
+                        discordMention = `\n\n${job.userMention}`; // Keep other mentions as-is
+                    }
+                }
+                
+                const discordMessage = {
+                    content: `📊 **Google Sheets Change Detected!**\n\n**Spreadsheet:** [${spreadsheetName}](${googleSheetsUrl})\n**Cell:** ${change.cellRange}\n**Change:** \`${change.oldValue || 'Empty'}\` → \`${change.newValue}\`\n**Time:** ${new Date().toLocaleString()}\n**🔗 Sheet Link:** ${googleSheetsUrl}${discordMention}`,
+                    embeds: [{
+                        title: "📈 Google Sheets Update",
+                        description: `Changes detected in **${spreadsheetName}**`,
+                        color: 0x4285f4, // Google blue
+                        fields: [
+                            {
+                                name: "📍 Cell",
+                                value: change.cellRange,
+                                inline: true
+                            },
+                            {
+                                name: "📊 Old Value",
+                                value: change.oldValue || "Empty",
+                                inline: true
+                            },
+                            {
+                                name: "📊 New Value", 
+                                value: String(change.newValue),
+                                inline: true
+                            },
+                            {
+                                name: "🔗 Open Google Sheet",
+                                value: googleSheetsUrl,
+                                inline: false
+                            }
+                        ],
+                        timestamp: new Date().toISOString(),
+                        footer: {
+                            text: "Sheets Connector for Discord"
+                        }
+                    }]
+                };
+                
+                const success = await DiscordService.sendMessage(job.webhookUrl, discordMessage);
+                result = success ? { success: true } : { success: false, error: 'Failed to send Discord message' };
+                
+            } else if (job.webhookUrl.includes('webhook.office.com') || job.webhookUrl.includes('outlook.office.com')) {
+                safeLog(`� [TEAMS SERVICE] Using Teams service for webhook...`);
+                const { TeamsService } = await import('./TeamsService');
+                
+                // Create Google Sheets URL for clickable link
+                const googleSheetsUrl = `https://docs.google.com/spreadsheets/d/${job.sheetId}/edit`;
+                
+                // Create Teams message format with improved layout and clickable spreadsheet name
+                const oldValueFormatted = change.oldValue || "Empty";
+                let newValueFormatted = String(change.newValue);
+                
+                // Add + or - prefix for numeric values
+                if (change.oldValue !== undefined && change.newValue !== undefined) {
+                    const oldNum = parseFloat(String(change.oldValue || 0));
+                    const newNum = parseFloat(String(change.newValue));
+                    
+                    if (!isNaN(oldNum) && !isNaN(newNum)) {
+                        const diff = newNum - oldNum;
+                        if (diff > 0) {
+                            newValueFormatted = `+ ${newNum}`;
+                        } else if (diff < 0) {
+                            newValueFormatted = `- ${Math.abs(newNum)}`;
+                        } else {
+                            newValueFormatted = String(newNum);
+                        }
+                    }
+                }
+                
+                const teamsMessage = {
+                    text: `📊 Change Detected in [${spreadsheetName}](${googleSheetsUrl})\n\n🕒 Time: ${new Date().toLocaleString()}\n\n📍 Cell: ${change.cellRange}\n\nOld Value: ${oldValueFormatted}\n\nNew Value: ${newValueFormatted}${job.userMention ? `\n\n🔔 ${job.userMention}` : ''}`
+                };
+                
+                const success = await TeamsService.sendMessage(job.webhookUrl, teamsMessage);
+                result = success ? { success: true } : { success: false, error: 'Failed to send Teams message' };
+                
+            } else {
+                // Default to Slack for backwards compatibility
+                safeLog(`📤 [SLACK SERVICE] Using Slack service for webhook...`);
+                const { SlackService } = await import('./SlackService');
+                const slackService = new SlackService(job.webhookUrl);
+                
+                result = await slackService.sendNotification(
+                    'Google Sheets change detected',
+                    job.sheetId,
+                    change.cellRange,
+                    change.oldValue,
+                    change.newValue,
+                    spreadsheetName,
+                    job.userMention || undefined
+                );
+            }
             
-            safeLog(`📊 [SLACK RESULT] Slack API response:`, result);
+            safeLog(`📊 [NOTIFICATION RESULT] API response:`, result);
             
             if (result.success) {
                 safeLog(`✅ [NOTIFICATION SUCCESS] Notification sent successfully for ${change.cellRange}`);

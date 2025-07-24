@@ -16,4 +16,11 @@ cp "public/chart.jpg" "dist/" 2>/dev/null && echo "✅ Chart icon copied" || ech
 cp "public/lightning.jpg" "dist/" 2>/dev/null && echo "✅ Lightning icon copied" || echo "⚠️ Lightning icon not found"
 cp "public/tools.jpg" "dist/" 2>/dev/null && echo "✅ Tools icon copied" || echo "⚠️ Tools icon not found"
 
+# Copy Teams instruction screenshots
+if [ -d "public/teams-instructions" ]; then
+  cp -r "public/teams-instructions" "dist/" 2>/dev/null && echo "✅ Teams instruction screenshots copied" || echo "⚠️ Teams instruction screenshots not found"
+else
+  echo "⚠️ Teams instructions folder not found"
+fi
+
 echo "🚀 All DataPingo brand assets copied successfully!"

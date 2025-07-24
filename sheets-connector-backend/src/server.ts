@@ -8,6 +8,8 @@ import crypto from 'crypto';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 import { MonitoringService } from './services/MonitoringService';
 import { SlackService } from './services/SlackService';
+import { TeamsService } from './services/TeamsService';
+import { DiscordService } from './services/DiscordService';
 import { safeLog, safeError } from './utils/logger';
 import csvParser from 'csv-parser';
 import * as XLSX from 'xlsx';
@@ -1772,6 +1774,44 @@ app.post('/api/slack/test-connection', async (req, res) => {
     }
 });
 
+// Test Teams connection endpoint
+app.post('/api/teams/test-connection', async (req, res) => {
+    try {
+        const { webhookUrl } = req.body;
+        if (!webhookUrl) {
+            return res.status(400).json({ success: false, error: 'Webhook URL required' });
+        }
+
+        const result = await TeamsService.testConnection(webhookUrl);
+        res.json(result);
+    } catch (error) {
+        safeError('Teams test connection error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
+// Test Discord connection endpoint
+app.post('/api/discord/test-connection', async (req, res) => {
+    try {
+        const { webhookUrl } = req.body;
+        if (!webhookUrl) {
+            return res.status(400).json({ success: false, error: 'Webhook URL required' });
+        }
+
+        const result = await DiscordService.testConnection(webhookUrl);
+        res.json(result);
+    } catch (error) {
+        safeError('Discord test connection error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
 // Google Drive Webhook Handler for Real-time Push Notifications
 app.post('/api/webhook/google-drive', async (req, res) => {
     try {
@@ -1934,6 +1974,9 @@ if (!process.env.SKIP_SERVER_START) {
         
         // Load persisted monitoring jobs after server starts
         await loadPersistedJobs();
+        
+        // Clean up any duplicate jobs after loading
+        cleanupDuplicateJobs();
         
         // Set up periodic job persistence saving
         setInterval(() => {
@@ -2448,6 +2491,45 @@ app.get('/api/monitoring/status', (req, res) => {
     }
 });
 
+// Clean up duplicate monitoring jobs
+const cleanupDuplicateJobs = () => {
+    try {
+        const activeJobs = monitoringService.getActiveJobs();
+        safeLog(`🧹 Checking for duplicate jobs among ${activeJobs.length} active jobs...`);
+        
+        const seenJobs = new Map();
+        const duplicatesToRemove = [];
+        
+        for (const job of activeJobs) {
+            const key = `${job.sheetId}:${job.cellRange}:${job.webhookUrl}:${job.userEmail || job.userId}`;
+            
+            if (seenJobs.has(key)) {
+                // This is a duplicate
+                duplicatesToRemove.push(job.id);
+                safeLog(`🗑️ Found duplicate job: ${job.id} (${job.spreadsheetName})`);
+            } else {
+                seenJobs.set(key, job.id);
+            }
+        }
+        
+        // Remove duplicates
+        if (duplicatesToRemove.length > 0) {
+            safeLog(`🧹 Removing ${duplicatesToRemove.length} duplicate jobs...`);
+            for (const jobId of duplicatesToRemove) {
+                monitoringService.stopMonitoring(jobId);
+            }
+            
+            // Save the cleaned state
+            saveJobsToPersistence();
+            safeLog(`✅ Cleaned up ${duplicatesToRemove.length} duplicate jobs`);
+        } else {
+            safeLog(`✅ No duplicate jobs found`);
+        }
+    } catch (error) {
+        safeError('Error cleaning up duplicate jobs:', error);
+    }
+};
+
 // Job persistence file path - Use absolute path that works on Railway
 const JOBS_PERSISTENCE_FILE = process.env.NODE_ENV === 'production' 
     ? '/tmp/active-jobs.json'  // Railway ephemeral storage
@@ -2514,26 +2596,40 @@ const saveJobsToPersistence = () => {
         const activeJobs = monitoringService.getActiveJobs();
         safeLog(`💾 Saving ${activeJobs.length} active jobs to persistence...`);
         
-        const jobsToSave = activeJobs.map(job => ({
-            id: job.id,
-            sheetId: job.sheetId,
-            cellRange: job.cellRange,
-            frequencyMinutes: job.frequencyMinutes,
-            webhookUrl: job.webhookUrl,
-            userMention: job.userMention,
-            conditions: job.conditions,
-            fileId: job.fileId,
-            userId: job.userId,
-            userEmail: job.userEmail,
-            userCredentials: job.userCredentials,
-            spreadsheetName: job.spreadsheetName,
-            sourceType: job.sourceType,
-            createdAt: job.createdAt
-        }));
+        // Remove duplicates based on sheetId, cellRange, and webhookUrl
+        const uniqueJobs = new Map();
+        const jobsToSave = [];
+        
+        for (const job of activeJobs) {
+            const key = `${job.sheetId}:${job.cellRange}:${job.webhookUrl}:${job.userEmail || job.userId}`;
+            if (!uniqueJobs.has(key)) {
+                uniqueJobs.set(key, true);
+                jobsToSave.push({
+                    id: job.id,
+                    sheetId: job.sheetId,
+                    cellRange: job.cellRange,
+                    frequencyMinutes: job.frequencyMinutes,
+                    webhookUrl: job.webhookUrl,
+                    userMention: job.userMention,
+                    conditions: job.conditions,
+                    fileId: job.fileId,
+                    userId: job.userId,
+                    userEmail: job.userEmail,
+                    userCredentials: job.userCredentials,
+                    spreadsheetName: job.spreadsheetName,
+                    sourceType: job.sourceType,
+                    createdAt: job.createdAt
+                });
+            } else {
+                safeLog(`🚫 Skipping duplicate job: ${job.id} (${job.spreadsheetName})`);
+            }
+        }
+        
+        safeLog(`🔄 Filtered ${activeJobs.length} jobs down to ${jobsToSave.length} unique jobs`);
         
         const jsonData = JSON.stringify(jobsToSave, null, 2);
         fs.writeFileSync(JOBS_PERSISTENCE_FILE, jsonData);
-        safeLog(`💾 Saved ${jobsToSave.length} jobs to ${JOBS_PERSISTENCE_FILE}`);
+        safeLog(`💾 Saved ${jobsToSave.length} unique jobs to ${JOBS_PERSISTENCE_FILE}`);
         safeLog(`📄 Persistence data: ${jsonData.substring(0, 200)}...`);
     } catch (error) {
         safeError('Error saving jobs to persistence:', error);
