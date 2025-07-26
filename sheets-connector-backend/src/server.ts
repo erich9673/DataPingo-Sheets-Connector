@@ -9,7 +9,6 @@ import { GoogleSheetsService } from './services/GoogleSheetsService';
 import { MonitoringService } from './services/MonitoringService';
 import { SlackService } from './services/SlackService';
 import { TeamsService } from './services/TeamsService';
-import { DiscordService } from './services/DiscordService';
 import { safeLog, safeError } from './utils/logger';
 import csvParser from 'csv-parser';
 import * as XLSX from 'xlsx';
@@ -1828,24 +1827,6 @@ app.post('/api/teams/test-connection', async (req, res) => {
 });
 
 // Test Discord connection endpoint
-app.post('/api/discord/test-connection', async (req, res) => {
-    try {
-        const { webhookUrl } = req.body;
-        if (!webhookUrl) {
-            return res.status(400).json({ success: false, error: 'Webhook URL required' });
-        }
-
-        const result = await DiscordService.testConnection(webhookUrl);
-        res.json(result);
-    } catch (error) {
-        safeError('Discord test connection error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-        });
-    }
-});
-
 // Google Drive Webhook Handler for Real-time Push Notifications
 app.post('/api/webhook/google-drive', async (req, res) => {
     try {
