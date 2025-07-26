@@ -46,6 +46,25 @@ const crypto_1 = __importDefault(require("crypto"));
 const GoogleSheetsService_1 = require("./services/GoogleSheetsService");
 const MonitoringService_1 = require("./services/MonitoringService");
 const SlackService_1 = require("./services/SlackService");
+// Debug: Check if services directory exists before importing TeamsService
+console.log('🔍 Debug: Checking services directory...');
+try {
+    const fs = require('fs');
+    const path = require('path');
+    const servicesPath = path.join(__dirname, 'services');
+    console.log('Services path:', servicesPath);
+    if (fs.existsSync(servicesPath)) {
+        console.log('✅ Services directory exists');
+        const files = fs.readdirSync(servicesPath);
+        console.log('Available service files:', files);
+    }
+    else {
+        console.log('❌ Services directory missing!');
+    }
+}
+catch (error) {
+    console.log('Debug error:', error.message);
+}
 const TeamsService_1 = require("./services/TeamsService");
 const logger_1 = require("./utils/logger");
 const csv_parser_1 = __importDefault(require("csv-parser"));

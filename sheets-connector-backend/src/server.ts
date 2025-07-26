@@ -8,6 +8,26 @@ import crypto from 'crypto';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 import { MonitoringService } from './services/MonitoringService';
 import { SlackService } from './services/SlackService';
+
+// Debug: Check if services directory exists before importing TeamsService
+console.log('🔍 Debug: Checking services directory...');
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const servicesPath = path.join(__dirname, 'services');
+  console.log('Services path:', servicesPath);
+  
+  if (fs.existsSync(servicesPath)) {
+    console.log('✅ Services directory exists');
+    const files = fs.readdirSync(servicesPath);
+    console.log('Available service files:', files);
+  } else {
+    console.log('❌ Services directory missing!');
+  }
+} catch (error) {
+  console.log('Debug error:', error.message);
+}
+
 import { TeamsService } from './services/TeamsService';
 import { safeLog, safeError } from './utils/logger';
 import csvParser from 'csv-parser';
