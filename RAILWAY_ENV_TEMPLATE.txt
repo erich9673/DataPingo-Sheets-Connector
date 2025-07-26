@@ -1,0 +1,41 @@
+# Railway Environment Variables for DataPingo Sheets Connector (Slack-only)
+
+# === SECURITY SETTINGS ===
+ADMIN_PASSWORD=YourSecureAdminPassword123!
+SESSION_SECRET=YourUltraSecureSessionSecret456!
+
+# === APPLICATION SETTINGS ===
+NODE_ENV=production
+PORT=3000
+
+# === GOOGLE OAUTH CREDENTIALS ===
+# Get these from Google Cloud Console
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+GOOGLE_REDIRECT_URI=https://your-railway-app.railway.app/api/auth/google/callback
+
+# === OPTIONAL SETTINGS ===
+DATABASE_PATH=./data/monitoring.db
+JWT_SECRET=your_jwt_secret_here
+
+# === INSTRUCTIONS ===
+# 1. Copy these variables to Railway Dashboard > Variables
+# 2. Replace placeholder values with your actual credentials
+# 3. Make sure GOOGLE_REDIRECT_URI matches your Railway app URL
+# 4. Set a strong ADMIN_PASSWORD for admin access
+# 5. Generate a random SESSION_SECRET (at least 32 characters)
+
+# === ADMIN ACCESS ===
+# After deployment, access admin panel at:
+# https://your-railway-app.railway.app/admin.html
+# Username: admin
+# Password: [your ADMIN_PASSWORD]
+
+# === PROTECTED FILES ===
+# These files require admin authentication:
+# - admin.html (main admin dashboard)
+# - oauth-debug.html (OAuth debugging)
+# - frontend-debug.html (frontend debugging)
+# - manual-entry.html (manual data entry)
+# - test-auth.html (authentication testing)
+# - beta.html (beta features)

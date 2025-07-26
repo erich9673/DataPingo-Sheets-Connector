@@ -9,7 +9,7 @@
     "install:deps": "cd sheets-connector-backend && npm install && cd ../sheets-connector-app && npm install",
     "build:backend": "cd sheets-connector-backend && npx tsc",
     "build:frontend": "cd sheets-connector-app && npm run build",
-    "railway:start": "cd sheets-connector-backend && node dist/server.js",
+    "railway:start": "node railway-server.js",
     "railway:build": "npm run build",
     "dev": "cd sheets-connector-backend && npm run dev",
     "frontend": "cd sheets-connector-app && npm start"

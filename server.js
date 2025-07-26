@@ -1,5 +1,9 @@
 // DataPingo Sheets Connector - Production Railway Deployment
 console.log('🚂 Starting DataPingo Sheets Connector on Railway...');
+
+// Load environment variables from .env file
+require('dotenv').config();
+
 console.log('📍 Working directory:', process.cwd());
 console.log('🔧 Environment:', process.env.NODE_ENV);
 console.log('📂 Directory contents:', require('fs').readdirSync(process.cwd()));
@@ -39,6 +43,28 @@ try {
     // Create Express app to serve both frontend and backend
     const app = express();
     
+    // Security headers middleware
+    app.use((req, res, next) => {
+        // Prevent clickjacking
+        res.setHeader('X-Frame-Options', 'DENY');
+        
+        // Prevent MIME type sniffing
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        
+        // Enable XSS protection
+        res.setHeader('X-XSS-Protection', '1; mode=block');
+        
+        // Referrer policy
+        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        
+        // Content Security Policy for admin pages
+        if (req.path.includes('admin.html') || req.path.includes('debug')) {
+            res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' www.googletagmanager.com; style-src 'self' 'unsafe-inline';");
+        }
+        
+        next();
+    });
+    
     // Simple test endpoint to verify server.js is running
     app.get('/test-server-js', (req, res) => {
       res.json({ 
@@ -75,9 +101,70 @@ try {
       });
     });
     
-    // Serve frontend static files
-    app.use(express.static(frontendPath));
+    // ⚠️ SECURITY: Protect sensitive admin files with authentication
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'datapingo-admin-2024';
+    console.log('🔑 Admin password configured:', ADMIN_PASSWORD ? 'SET' : 'NOT SET');
+    console.log('🔑 Admin password from env:', process.env.ADMIN_PASSWORD ? 'SET' : 'NOT SET');
+    
+    const PROTECTED_FILES = [
+        'admin.html',
+        'oauth-debug.html', 
+        'oauth-debug-simple.html',
+        'frontend-debug.html',
+        'manual-entry.html',
+        'test-auth.html'
+    ];
+    
+    // Admin authentication middleware
+    function requireAdminAuth(req, res, next) {
+        console.log('🔍 Auth attempt for:', req.path);
+        const authHeader = req.headers.authorization;
+        console.log('🔍 Auth header:', authHeader ? 'Present' : 'Missing');
+        
+        if (!authHeader || !authHeader.startsWith('Basic ')) {
+            res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
+            return res.status(401).send('Authentication required');
+        }
+        
+        const base64Credentials = authHeader.split(' ')[1];
+        const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+        const [username, password] = credentials.split(':');
+        
+        console.log('🔍 Provided username:', username);
+        console.log('🔍 Expected password:', ADMIN_PASSWORD);
+        console.log('🔍 Provided password matches:', password === ADMIN_PASSWORD);
+        
+        if (username === 'admin' && password === ADMIN_PASSWORD) {
+            console.log('✅ Admin authentication successful');
+            next();
+        } else {
+            console.log('❌ Admin authentication failed');
+            res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
+            return res.status(401).send('Invalid credentials');
+        }
+    }
+    
+    // Protect admin files with authentication
+    PROTECTED_FILES.forEach(filename => {
+        app.get(`/${filename}`, requireAdminAuth, (req, res) => {
+            res.sendFile(path.join(frontendPath, filename));
+        });
+    });
+    
+    // Custom static file serving that excludes protected files
+    app.use(express.static(frontendPath, {
+        index: ['index.html'],
+        setHeaders: (res, path) => {
+            // Block direct access to protected files through static serving
+            const filename = require('path').basename(path);
+            if (PROTECTED_FILES.includes(filename)) {
+                res.status(403);
+                throw new Error('Access denied');
+            }
+        }
+    }));
     console.log('� Static files served from:', frontendPath);
+    console.log('🔒 Protected admin files:', PROTECTED_FILES.join(', '));
     
     // Load backend server logic but mount it on /api
     console.log('�🚀 Loading DataPingo backend API...');
