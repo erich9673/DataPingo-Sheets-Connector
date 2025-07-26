@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const [availableSheetTabs, setAvailableSheetTabs] = useState<any[]>([]);
   
   // Platform configuration
-  const [selectedPlatform, setSelectedPlatform] = useState<'slack' | 'teams' | 'discord'>('slack');
+  const [selectedPlatform, setSelectedPlatform] = useState<'slack' | 'teams'>('slack');
   const [platformWebhook, setPlatformWebhook] = useState('');
   const [platformConnected, setPlatformConnected] = useState(false);
   
@@ -256,8 +256,7 @@ const App: React.FC = () => {
     try {
       const platformEndpoints = {
         slack: 'slack',
-        teams: 'teams', 
-        discord: 'discord'
+        teams: 'teams'
       };
       
       const endpoint = platformEndpoints[selectedPlatform];
@@ -275,8 +274,7 @@ const App: React.FC = () => {
         setPlatformConnected(true);
         const platformNames = {
           slack: 'Slack',
-          teams: 'Microsoft Teams',
-          discord: 'Discord'
+          teams: 'Microsoft Teams'
         };
         alert(`✅ ${platformNames[selectedPlatform]} connection successful! Check your ${platformNames[selectedPlatform].toLowerCase()} channel for the test message.`);
       } else {
@@ -1141,7 +1139,7 @@ const App: React.FC = () => {
               borderRadius: '8px',
               border: '1px solid #e2e8f0'
             }}>
-              {(['slack', 'teams', 'discord'] as const).map((platform) => (
+              {(['slack', 'teams'] as const).map((platform) => (
                 <button
                   key={platform}
                   onClick={() => {
@@ -1166,7 +1164,6 @@ const App: React.FC = () => {
                 >
                   {platform === 'slack' && '💬 Slack'}
                   {platform === 'teams' && '💼 Teams'}
-                  {platform === 'discord' && '🎮 Discord'}
                 </button>
               ))}
             </div>
@@ -1186,8 +1183,7 @@ const App: React.FC = () => {
                 onChange={(e) => setPlatformWebhook(e.target.value)}
                 placeholder={
                   selectedPlatform === 'slack' ? 'https://hooks.slack.com/services/...' :
-                  selectedPlatform === 'teams' ? 'https://your-tenant.webhook.office.com/...' :
-                  'https://discord.com/api/webhooks/...'
+                  'https://your-tenant.webhook.office.com/...'
                 }
                 style={{
                   flex: 1,
@@ -1336,42 +1332,6 @@ const App: React.FC = () => {
                   </details>
                 )}
                 
-                {selectedPlatform === 'discord' && (
-                  <details>
-                    <summary>🤔 How to get a Discord Webhook URL?</summary>
-                    <div className="help-content">
-                      <h4>📋 Step-by-Step Guide:</h4>
-                      <ol>
-                        <li>
-                          <strong>Open Discord Channel:</strong>
-                          <br />Go to the Discord channel where you want to receive notifications
-                        </li>
-                        <li>
-                          <strong>Channel Settings:</strong>
-                          <br />Right-click the channel → "Edit Channel" → "Integrations" → "Webhooks"
-                        </li>
-                        <li>
-                          <strong>Create Webhook:</strong>
-                          <br />Click "New Webhook" → Name it "Sheets Connector" → Choose the channel
-                        </li>
-                        <li>
-                          <strong>Copy Webhook URL:</strong>
-                          <br />Click "Copy Webhook URL" to get the URL starting with <code>https://discord.com/api/webhooks/...</code>
-                        </li>
-                      </ol>
-                      
-                      <div className="help-note">
-                        <strong>💡 Pro Tip:</strong> You can customize the webhook's name and avatar in the settings!
-                      </div>
-                      
-                      <div className="help-links">
-                        <a href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks" target="_blank" rel="noopener noreferrer" className="help-link">
-                          📖 Official Discord Documentation
-                        </a>
-                      </div>
-                    </div>
-                  </details>
-                )}
               </div>
             )}
           </div>

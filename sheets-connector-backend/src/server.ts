@@ -1846,7 +1846,6 @@ app.post('/api/teams/test-connection', async (req, res) => {
     }
 });
 
-// Test Discord connection endpoint
 // Google Drive Webhook Handler for Real-time Push Notifications
 app.post('/api/webhook/google-drive', async (req, res) => {
     try {
