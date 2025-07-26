@@ -4,7 +4,7 @@
   "description": "DataPingo Sheets Connector - Real-time Google Sheets to Slack monitoring with instant notifications",
   "main": "server.js",
   "scripts": {
-    "start": "echo 'Starting DataPingo Backend directly...' && cd sheets-connector-backend && node dist/server.js",
+    "start": "node railway-server.js",
     "build": "npm run install:deps && npm run build:backend && npm run build:frontend",
     "install:deps": "cd sheets-connector-backend && npm install && cd ../sheets-connector-app && npm install",
     "build:backend": "cd sheets-connector-backend && npx tsc",
