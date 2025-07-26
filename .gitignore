@@ -28,8 +28,9 @@ Thumbs.db
 *-test.*
 *-broken.*
 
-# Build outputs
-dist/
+# Build outputs (temporarily allowing backend dist for Railway)
+# dist/
+sheets-connector-app/dist/
 build/
 *.tgz
 *.tar.gz
@@ -66,4 +67,4 @@ sheets-connector-backend/.env
 # Temporary files
 tmp/
 temp/
-.tmp/
+.tmp/dist/
