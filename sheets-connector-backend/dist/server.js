@@ -91,7 +91,7 @@ app.use((0, cors_1.default)({
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 // Admin password protection middleware
-const adminPassword = process.env.ADMIN_PASSWORD || 'password';
+const adminPassword = process.env.ADMIN_PASSWORD || '2sNjR4aDz5@y!';
 const adminFiles = ['/admin.html', '/oauth-debug.html', '/frontend-debug.html', '/manual-entry.html', '/test-auth.html', '/beta.html'];
 app.use((req, res, next) => {
     // Check if this is an admin file
