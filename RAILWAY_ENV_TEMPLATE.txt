@@ -10,8 +10,8 @@ PORT=3000
 
 # === GOOGLE OAUTH CREDENTIALS ===
 # Get these from Google Cloud Console
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+GOOGLE_CLIENT_ID=your_actual_google_client_id
+GOOGLE_CLIENT_SECRET=your_actual_google_client_secret
 GOOGLE_REDIRECT_URI=https://your-railway-app.railway.app/api/auth/google/callback
 
 # === OPTIONAL SETTINGS ===
