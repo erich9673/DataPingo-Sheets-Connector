@@ -17,4 +17,4 @@ cmds = [
 ]
 
 [start]
-cmd = "node server.js"
+cmd = "cd sheets-connector-backend && node dist/server.js"
