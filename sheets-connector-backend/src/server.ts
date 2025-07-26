@@ -62,6 +62,40 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Admin password protection middleware
+const adminPassword = process.env.ADMIN_PASSWORD || 'password';
+const adminFiles = ['/admin.html', '/oauth-debug.html', '/frontend-debug.html', '/manual-entry.html', '/test-auth.html', '/beta.html'];
+
+app.use((req, res, next) => {
+    // Check if this is an admin file
+    if (adminFiles.includes(req.path)) {
+        const auth = req.headers.authorization;
+        
+        if (!auth || !auth.startsWith('Basic ')) {
+            res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
+            return res.status(401).send('Authentication required');
+        }
+        
+        const credentials = Buffer.from(auth.slice(6), 'base64').toString().split(':');
+        const username = credentials[0];
+        const password = credentials[1];
+        
+        if (username !== 'admin' || password !== adminPassword) {
+            res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
+            return res.status(401).send('Invalid credentials');
+        }
+    }
+    
+    // Add security headers
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'");
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    next();
+});
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
