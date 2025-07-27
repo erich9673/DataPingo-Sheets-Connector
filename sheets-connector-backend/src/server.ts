@@ -5,9 +5,12 @@ import path from 'path';
 import multer from 'multer';
 import fs from 'fs';
 import crypto from 'crypto';
+import http from 'http';
 import { GoogleSheetsService } from './services/GoogleSheetsService';
 import { MonitoringService } from './services/MonitoringService';
 import { SlackService } from './services/SlackService';
+import { WebSocketService } from './services/WebSocketService';
+import { GoogleDriveWebhookService } from './services/GoogleDriveWebhookService';
 
 // Debug: Check if services directory exists before importing TeamsService
 console.log('🔍 Debug: Checking services directory...');
@@ -58,6 +61,7 @@ if (missingVars.length > 0) {
 console.log('✅ All required environment variables found');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.BACKEND_PORT || process.env.PORT || 3001;
 
 // Auto-approval configuration
@@ -1849,7 +1853,7 @@ app.post('/api/teams/test-connection', async (req, res) => {
 // Google Drive Webhook Handler for Real-time Push Notifications
 app.post('/api/webhook/google-drive', async (req, res) => {
     try {
-        safeLog('Received Google Drive webhook notification');
+        safeLog('🔔 Received Google Drive webhook notification');
         safeLog('Headers:', req.headers);
         safeLog('Body:', req.body);
 
@@ -1857,7 +1861,7 @@ app.post('/api/webhook/google-drive', async (req, res) => {
         const isValid = googleSheetsService.verifyWebhookNotification(req.headers);
         
         if (!isValid) {
-            safeError('Invalid webhook notification received');
+            safeError('❌ Invalid webhook notification received');
             return res.status(400).json({ 
                 success: false, 
                 error: 'Invalid webhook notification' 
@@ -1870,25 +1874,42 @@ app.post('/api/webhook/google-drive', async (req, res) => {
         const resourceState = req.headers['x-goog-resource-state'] as string;
         const eventType = req.headers['x-goog-resource-uri'] as string;
 
-        safeLog(`Webhook notification - Channel: ${channelId}, Resource: ${resourceId}, State: ${resourceState}`);
+        safeLog(`📡 Webhook notification - Channel: ${channelId}, Resource: ${resourceId}, State: ${resourceState}`);
 
         // Only process 'update' events (file changes)
         if (resourceState === 'update') {
-            safeLog('Processing real-time update notification');
+            safeLog('⚡ Processing real-time update notification');
+            
+            // Broadcast real-time sheet change detection
+            WebSocketService.broadcastSheetChange({
+                sheetId: resourceId,
+                sheetTitle: 'Google Sheet', // We could enhance this to get actual title
+                changeType: 'update',
+                timestamp: new Date().toISOString()
+            });
             
             // Trigger immediate monitoring check for this specific spreadsheet
             await monitoringService.handleRealtimeUpdate(resourceId);
             
-            safeLog('Real-time update processed successfully');
+            safeLog('✅ Real-time update processed and broadcasted successfully');
         } else {
-            safeLog(`Ignoring webhook state: ${resourceState}`);
+            safeLog(`⏭️ Ignoring webhook state: ${resourceState}`);
         }
 
         // Always respond with 200 to acknowledge receipt
         res.status(200).json({ success: true, processed: resourceState === 'update' });
 
     } catch (error) {
-        safeError('Error processing webhook notification:', error);
+        safeError('❌ Error processing webhook notification:', error);
+        
+        // Broadcast error to connected clients
+        WebSocketService.broadcastSystemStatus({
+            type: 'error',
+            message: `Failed to process webhook notification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            timestamp: new Date().toISOString(),
+            details: { resourceId: req.headers['x-goog-resource-id'] }
+        });
+        
         // Still return 200 to avoid Google retrying
         res.status(200).json({ 
             success: false, 
@@ -1999,12 +2020,18 @@ app.get('/beta', (req, res) => {
 
 // Start server only if not being imported
 if (!process.env.SKIP_SERVER_START) {
-    app.listen(PORT, async () => {
+    server.listen(PORT, async () => {
         safeLog(`🚀 Sheets Connector Backend Server running on port ${PORT}`);
         safeLog(`📊 API Base URL: http://localhost:${PORT}/api`);
         safeLog(`🔍 Health Check: http://localhost:${PORT}/health`);
         safeLog(`🔧 Environment: ${process.env.NODE_ENV}`);
         safeLog(`📂 Working directory: ${process.cwd()}`);
+        
+        // Initialize WebSocket service for real-time updates
+        WebSocketService.initialize(server);
+        
+        // Initialize Google Drive webhook service
+        GoogleDriveWebhookService.initialize();
         
         // Load persisted monitoring jobs after server starts
         await loadPersistedJobs();
@@ -2016,6 +2043,9 @@ if (!process.env.SKIP_SERVER_START) {
         setInterval(() => {
             saveJobsToPersistence();
         }, 10 * 60 * 1000); // Save every 10 minutes
+        
+        safeLog(`🔌 WebSocket server ready for real-time dashboard updates`);
+        safeLog(`🔔 Google Drive webhook service ready for instant change detection`);
     });
 } else {
     safeLog(`⏭️ Skipping server start due to SKIP_SERVER_START flag`);

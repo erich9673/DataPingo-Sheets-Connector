@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './styles/App.css';
 import { API_BASE_URL } from './config/api';
 import { Analytics } from './utils/analytics';
 
+
 type AuthStatus = 'idle' | 'requesting' | 'pending' | 'approved' | 'denied';
+
+// Helper function to extract sheet ID from Google Sheets URL
+const extractSheetIdFromUrl = (url: string): string | null => {
+  if (!url) return null;
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : null;
+};
 
 const App: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
@@ -40,6 +48,8 @@ const App: React.FC = () => {
   const [conditionsValidationStatus, setConditionsValidationStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
   const [validationMessage, setValidationMessage] = useState('');
 
+
+
   // Simple auth check
   useEffect(() => {
     // Initialize Google Analytics
@@ -52,7 +62,7 @@ const App: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const installSource = urlParams.get('source') || urlParams.get('utm_source');
     if (installSource) {
-      Analytics.trackInstallation(installSource);
+      Analytics.trackInstallation(installSource || '');
     }
     
     // Check for auth token in URL (from OAuth redirect)
@@ -60,43 +70,59 @@ const App: React.FC = () => {
     
     console.log('🔗 URL parameters check:', {
       hasAuthTokenParam: !!authToken,
-      authTokenLength: authToken ? authToken.length : 0,
-      authTokenPreview: authToken ? `${authToken.substring(0, 8)}...` : 'null',
+      authTokenLength: authToken?.length || 0,
+      authTokenPreview: authToken ? `${(authToken as string).substring(0, 8)}...` : 'null',
       fullURL: window.location.href,
       searchParams: window.location.search,
       parameterUsed: urlParams.get('authToken') ? 'authToken' : urlParams.get('token') ? 'token' : 'none'
     });
     
-    if (authToken) {
-      // Store auth token and clean URL
-      console.log('💾 Storing auth token from URL and cleaning URL...');
-      localStorage.setItem('datapingo_auth_token', authToken);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      console.log('✅ Auth token received and stored from OAuth redirect');
-    } else {
-      console.log('ℹ️ No auth token in URL parameters');
-    }
+    const processAuth = async () => {        if (authToken) {
+          // Store auth token and clean URL
+          console.log('💾 Storing auth token from URL and cleaning URL...');
+          localStorage.setItem('datapingo_auth_token', authToken as string);
+          window.history.replaceState({}, document.title, window.location.pathname);
+          console.log('✅ Auth token received and stored from OAuth redirect');
+          
+          // Immediately check auth status after storing token
+          console.log('🔄 Starting auth verification...');
+          try {
+            await checkGoogleAuthStatus();
+            console.log('✅ Auth verification completed');
+            await loadMonitoringJobs();
+            console.log('✅ Monitoring jobs loaded');
+          } catch (authError) {
+            console.error('❌ Auth verification failed:', authError);
+          }
+        } else {
+        console.log('ℹ️ No auth token in URL parameters');
+        
+        // Check for existing stored auth
+        const savedEmail = localStorage.getItem('datapingo_user_email');
+        const storedAuthToken = localStorage.getItem('datapingo_auth_token');
+        
+        console.log('🚀 App initialization:', {
+          hasSavedEmail: !!savedEmail,
+          hasAuthToken: !!storedAuthToken,
+          savedEmail: savedEmail || 'none'
+        });
+        
+        if (savedEmail) {
+          setUserEmail(savedEmail || '');
+          setAuthStatus('approved'); // Assume approved for testing
+          await checkGoogleAuthStatus(); // Check Google auth when user is approved
+          await loadMonitoringJobs(); // Load existing monitoring jobs
+        } else if (storedAuthToken) {
+          // If we have an auth token but no saved email, check auth status to potentially get the email
+          console.log('📧 No saved email but auth token exists, checking auth status...');
+          await checkGoogleAuthStatus();
+        }
+      }
+    };
     
-    const savedEmail = localStorage.getItem('datapingo_user_email');
-    const storedAuthToken = localStorage.getItem('datapingo_auth_token');
-    
-    console.log('🚀 App initialization:', {
-      hasSavedEmail: !!savedEmail,
-      hasAuthToken: !!storedAuthToken,
-      savedEmail: savedEmail || 'none'
-    });
-    
-    if (savedEmail) {
-      setUserEmail(savedEmail);
-      setAuthStatus('approved'); // Assume approved for testing
-      checkGoogleAuthStatus(); // Check Google auth when user is approved
-      loadMonitoringJobs(); // Load existing monitoring jobs
-    } else if (storedAuthToken) {
-      // If we have an auth token but no saved email, check auth status to potentially get the email
-      console.log('📧 No saved email but auth token exists, checking auth status...');
-      checkGoogleAuthStatus();
-    }
-  }, []);
+    // Process authentication
+    processAuth();
+  }, []); // Empty dependency array to run only once
 
   const checkGoogleAuthStatus = async () => {
     try {
@@ -112,13 +138,25 @@ const App: React.FC = () => {
       
       if (authToken) {
         console.log('🔐 Found auth token, verifying with backend...');
-        const tokenResponse = await fetch(`${API_BASE_URL}/api/auth/verify-token`, {
+        
+        const verifyUrl = `${API_BASE_URL}/api/auth/verify-token`;
+        console.log('📡 Making request to:', verifyUrl);
+        
+        const tokenResponse = await fetch(verifyUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ authToken })
         });
         
         console.log('📡 Token verification response status:', tokenResponse.status);
+        console.log('📡 Token verification response headers:', Object.fromEntries(tokenResponse.headers.entries()));
+        
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text();
+          console.error('❌ HTTP error response:', errorText);
+          throw new Error(`HTTP ${tokenResponse.status}: ${errorText}`);
+        }
+        
         const tokenData = await tokenResponse.json();
         console.log('📄 Token verification data:', tokenData);
         
@@ -128,23 +166,32 @@ const App: React.FC = () => {
           // Set user email and auth status if we got email from token verification
           if (tokenData.email) {
             console.log('📧 Setting user email from token verification:', tokenData.email);
+            
+            // Update all auth states together to ensure re-render
             setUserEmail(tokenData.email);
             localStorage.setItem('datapingo_user_email', tokenData.email);
             setAuthStatus('approved');
+            
+            // Force a re-render by updating a dummy state
+            console.log('✅ Auth status set to approved, user email set');
           }
           
+          console.log('🔄 Setting Google auth status to connected...');
           setGoogleAuthStatus('connected');
+          console.log('🔄 Loading Google Sheets...');
           await loadGoogleSheets();
           return;
         } else {
           console.log('❌ Token invalid, removing from localStorage...', tokenData);
           localStorage.removeItem('datapingo_auth_token');
+          setGoogleAuthStatus('idle');
         }
       } else {
         console.log('ℹ️ No auth token found in localStorage');
       }
       
       // Fallback to session-based authentication
+      console.log('🔄 Trying session-based authentication...');
       const response = await fetch(`${API_BASE_URL}/api/auth/google-status`, {
         credentials: 'include'
       });
@@ -157,11 +204,16 @@ const App: React.FC = () => {
         setGoogleAuthStatus('connected');
         await loadGoogleSheets();
       } else {
-        console.log('Google not authenticated');
+        console.log('Google not authenticated, setting status to idle');
         setGoogleAuthStatus('idle');
       }
     } catch (error) {
-      console.error('Error checking Google auth status:', error);
+      console.error('❌ Error checking Google auth status:', error);
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'Unknown'
+      });
       setGoogleAuthStatus('error');
     }
   };
@@ -569,7 +621,7 @@ const App: React.FC = () => {
         </form>
 
         <div className="info-section">
-          <h3>Features</h3>
+          <h3>Why Choose DataPingo?</h3>
           <ul>
             <li><img src="/chart.jpg" alt="Monitor" className="feature-icon" />Monitor Google Sheets in real-time</li>
             <li><img src="/lightning.jpg" alt="Notifications" className="feature-icon" />Get Slack notifications on changes</li>
@@ -1359,6 +1411,7 @@ const App: React.FC = () => {
                 onFocus={(e) => e.target.style.borderColor = '#667eea'}
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
               >
+                <option value={0.25}>Every 15 seconds ⚡ (Demo only)</option>
                 <option value={0.5}>Every 30 seconds</option>
                 <option value={1}>Every 1 minute</option>
                 <option value={5}>Every 5 minutes</option>
@@ -1394,6 +1447,371 @@ const App: React.FC = () => {
               <small style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.5rem', display: 'block' }}>
                 e.g., @channel, @here, @username
               </small>
+            </div>
+          </div>
+
+          {/* Google API Quota Management Section - REMOVED
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ 
+              padding: '1.5rem',
+              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+              borderRadius: '12px',
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>📊</span>
+                <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.2rem', fontWeight: '700' }}>
+                  Google API Quota Management
+                </h3>
+              </div>
+
+              {/* Current Quota Status - REMOVED
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1.25rem'
+              }}>
+                <div style={{ 
+                  padding: '1rem',
+                  background: 'white',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#059669' }}>300</div>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '500' }}>
+                    Read Requests/Min
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                    Free Tier Default
+                  </div>
+                </div>
+                
+                <div style={{ 
+                  padding: '1rem',
+                  background: 'white',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#0ea5e9' }}>
+                    {Math.round((60 / frequencyMinutes) * monitoringJobs.length * 24)}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '500' }}>
+                    Est. Daily Usage
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                    {monitoringJobs.length} active job(s)
+                  </div>
+                </div>
+                
+                <div style={{ 
+                  padding: '1rem',
+                  background: 'white',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ 
+                    fontSize: '1.8rem', 
+                    fontWeight: '700', 
+                    color: ((60 / frequencyMinutes) * monitoringJobs.length * 24) > 10000 ? '#dc2626' : '#059669'
+                  }}>
+                    {Math.round(((60 / frequencyMinutes) * monitoringJobs.length * 24) / 100)}%
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '500' }}>
+                    Daily Quota Used
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                    of 10,000 limit
+                  </div>
+                </div>
+              </div>
+
+              {/* Quota Warning - REMOVED
+              {((60 / frequencyMinutes) * (monitoringJobs.length + 1) * 24) > 8000 && (
+                <div style={{ 
+                  padding: '1rem',
+                  background: '#fef3c7',
+                  borderRadius: '8px',
+                  border: '1px solid #f59e0b',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem'
+                }}>
+                  <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                  <div>
+                    <div style={{ fontWeight: '600', color: '#92400e', marginBottom: '0.25rem' }}>
+                      High API Usage Detected
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: '#92400e' }}>
+                      Your current settings may exceed Google's daily quota limit. Consider reducing frequency or requesting higher quotas.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Actions - REMOVED
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                <button
+                  onClick={() => window.open('https://console.cloud.google.com/apis/api/sheets.googleapis.com/quotas', '_blank')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#667eea',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                  onMouseEnter={(e) => (e.target as HTMLElement).style.background = '#5a67d8'}
+                  onMouseLeave={(e) => (e.target as HTMLElement).style.background = '#667eea'}
+                >
+                  � View & Edit Quotas
+                </button>
+
+                <button
+                  onClick={() => window.open('https://cloud.google.com/billing/docs/how-to/modify-project', '_blank')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#059669',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                  onMouseEnter={(e) => (e.target as HTMLElement).style.background = '#047857'}
+                  onMouseLeave={(e) => (e.target as HTMLElement).style.background = '#059669'}
+                >
+                  � Enable Billing (Required)
+                </button>
+
+                <button
+                  onClick={() => window.open('https://console.cloud.google.com/support/cases/create?product=quota', '_blank')}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                  onMouseEnter={(e) => (e.target as HTMLElement).style.background = '#d97706'}
+                  onMouseLeave={(e) => (e.target as HTMLElement).style.background = '#f59e0b'}
+                >
+                  � Support Request
+                </button>
+              </div>
+
+              {/* Step-by-Step Instructions - REMOVED
+              <div style={{ 
+                padding: '1rem',
+                background: '#f0f9ff',
+                borderRadius: '8px',
+                border: '1px solid #0ea5e9',
+                marginBottom: '1rem'
+              }}>
+                <div style={{ fontWeight: '600', color: '#0369a1', marginBottom: '0.5rem', fontSize: '1rem' }}>
+                  🎯 Quick Quota Increase Steps:
+                </div>
+                <ol style={{ 
+                  margin: 0, 
+                  paddingLeft: '1.25rem',
+                  fontSize: '0.9rem',
+                  lineHeight: '1.6',
+                  color: '#0369a1'
+                }}>
+                  <li><strong>Click "📊 View & Edit Quotas"</strong> → Select "Read requests per minute" → Click "EDIT QUOTAS"</li>
+                  <li><strong>If no "EDIT QUOTAS" button:</strong> Click "💳 Enable Billing" first (required for quota increases)</li>
+                  <li><strong>Fill out form:</strong> Request 1,000-5,000 requests/minute, mention "production monitoring system"</li>
+                  <li><strong>If quota page doesn't work:</strong> Use "📧 Support Request" and select "Quota Management"</li>
+                </ol>
+              </div>
+
+              {/* Expandable Guide - REMOVED
+              <details style={{ marginTop: '1rem' }}>
+                <summary style={{ 
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  color: '#374151',
+                  fontSize: '1rem',
+                  padding: '0.5rem 0',
+                  borderRadius: '6px',
+                  transition: 'background 0.2s ease'
+                }}>
+                  📋 How to Request Higher Google API Quotas
+                </summary>
+                <div style={{ 
+                  marginTop: '1rem',
+                  padding: '1rem',
+                  background: 'white',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1rem' }}>
+                      🚀 Method 1: Direct Quota Increase (Fastest)
+                    </h4>
+                    <ol style={{ 
+                      margin: 0, 
+                      paddingLeft: '1.25rem',
+                      fontSize: '0.9rem',
+                      lineHeight: '1.6',
+                      color: '#374151'
+                    }}>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Visit Quotas Page:</strong> Use the "📊 View & Edit Quotas" button above
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Find "Read requests per minute":</strong> Look for the 300/min limit
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Check the box:</strong> Click the checkbox next to the quota
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Click "EDIT QUOTAS":</strong> Button appears at the top after selecting
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Request New Limit:</strong> Ask for 1,000-5,000 requests/minute
+                      </li>
+                      <li>
+                        <strong>Justify Request:</strong> "Production monitoring system for Google Sheets changes"
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1rem' }}>
+                      ⚠️ If "EDIT QUOTAS" Button Missing
+                    </h4>
+                    <div style={{ 
+                      padding: '0.75rem',
+                      background: '#fef3c7',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem',
+                      color: '#92400e',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <strong>Most common issue:</strong> Billing not enabled on your Google Cloud project
+                    </div>
+                    <ol style={{ 
+                      margin: 0, 
+                      paddingLeft: '1.25rem',
+                      fontSize: '0.9rem',
+                      lineHeight: '1.6',
+                      color: '#374151'
+                    }}>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Enable Billing:</strong> Click "💳 Enable Billing" button above
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Add Payment Method:</strong> Credit card required (won't be charged for quota increases)
+                      </li>
+                      <li>
+                        <strong>Return to Quotas:</strong> The "EDIT QUOTAS" button should now appear
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1rem' }}>
+                      🎫 Method 2: Support Request (Alternative)
+                    </h4>
+                    <ol style={{ 
+                      margin: 0, 
+                      paddingLeft: '1.25rem',
+                      fontSize: '0.9rem',
+                      lineHeight: '1.6',
+                      color: '#374151'
+                    }}>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Use Support Button:</strong> Click "📧 Support Request" above
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Select Product:</strong> Choose "Google Cloud APIs" or "Quota Management"
+                      </li>
+                      <li style={{ marginBottom: '0.5rem' }}>
+                        <strong>Issue Title:</strong> "Google Sheets API quota increase request"
+                      </li>
+                      <li>
+                        <strong>Description:</strong> "Need higher read requests/minute for production monitoring system"
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1rem' }}>
+                      💡 Typical Quota Increases Available
+                    </h4>
+                    <div style={{ 
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                      gap: '0.75rem',
+                      fontSize: '0.85rem'
+                    }}>
+                      <div style={{ 
+                        padding: '0.75rem',
+                        background: '#f0f9ff',
+                        borderRadius: '6px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#0369a1' }}>Basic</div>
+                        <div style={{ color: '#64748b' }}>1,000/min</div>
+                      </div>
+                      <div style={{ 
+                        padding: '0.75rem',
+                        background: '#ecfdf5',
+                        borderRadius: '6px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#059669' }}>Standard</div>
+                        <div style={{ color: '#64748b' }}>5,000/min</div>
+                      </div>
+                      <div style={{ 
+                        padding: '0.75rem',
+                        background: '#fef3c7',
+                        borderRadius: '6px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#d97706' }}>Enterprise</div>
+                        <div style={{ color: '#64748b' }}>10,000+/min</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ 
+                    padding: '0.75rem',
+                    background: '#f0f9ff',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    color: '#0369a1'
+                  }}>
+                    <strong>💭 Pro Tip:</strong> When requesting increases, mention that you're building a production monitoring system 
+                    and include your expected number of users and monitoring frequency. Google is generally generous with 
+                    reasonable business use cases.
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -1825,9 +2243,9 @@ const App: React.FC = () => {
                 No conditions set - will alert on any value change
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                {conditions.map(condition => (
-                  <div key={condition.id} style={{ 
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {conditions.map((condition, index) => (
+                  <div key={index} style={{
                     display: 'grid', 
                     gridTemplateColumns: '1fr 1fr 2fr auto',
                     gap: '0.5rem',
@@ -2232,22 +2650,52 @@ const App: React.FC = () => {
 
   // Main render logic
   const renderContent = () => {
+    // Add debug info at the top
+    console.log('🎨 Rendering content with states:', {
+      authStatus,
+      userEmail,
+      googleAuthStatus,
+      showMonitoringConfig
+    });
+    
     if (showMonitoringConfig) {
       return renderMonitoringConfig();
     }
     
-    // Skip manual approval - go straight to Google login
-    switch (googleAuthStatus) {
-      case 'connected':
-        return renderApprovedUser();
-      case 'connecting':
-        return renderConnectingToGoogle();
-      case 'error':
-        return renderGoogleAuthError();
-      case 'idle':
-      default:
-        return renderGoogleLoginScreen();
+    // First check user auth status
+    if (authStatus === 'idle') {
+      return renderAuthForm();
     }
+    
+    if (authStatus === 'requesting') {
+      return renderAuthForm(); // Show form with loading state
+    }
+    
+    if (authStatus === 'pending') {
+      return renderPendingApproval();
+    }
+    
+    if (authStatus === 'denied') {
+      return renderAuthForm(); // Show form with error
+    }
+    
+    // User is approved, now check Google auth status
+    if (authStatus === 'approved') {
+      switch (googleAuthStatus) {
+        case 'connected':
+          return renderApprovedUser();
+        case 'connecting':
+          return renderConnectingToGoogle();
+        case 'error':
+          return renderGoogleAuthError();
+        case 'idle':
+        default:
+          return renderGoogleLoginScreen();
+      }
+    }
+    
+    // Fallback
+    return renderAuthForm();
   };
 
   return (

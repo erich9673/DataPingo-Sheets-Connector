@@ -51,46 +51,22 @@ Protected Admin Pages: Require Basic Auth (admin/password)
 - `GET /admin.html` (no auth) → 401 Unauthorized ✅
 - `GET /admin.html` (with auth) → 200 OK ✅
 
-## 🚀 Railway Deployment Status
+## 🚀 DEPLOYMENT STATUS
 
-### Issue Resolution ✅
-- **Problem**: Railway deployment failed with "Cannot find module './services/TeamsService'"
-- **Root Cause**: Build script was set to `echo` instead of actual TypeScript compilation
-- **Solution Applied**: 
-  - Updated `package.json` build script to use `tsc`
-  - Moved TypeScript from devDependencies to dependencies for Railway build
-  - Removed obsolete DiscordService.ts source file
-  - Verified successful local compilation and startup
+### ✅ Railway Deployment Triggered
+- **Status**: Deployment in progress on Railway
+- **Trigger**: Latest git push with Discord-free application
+- **Verified**: User confirmed clean UI on localhost:3002 (only Slack & Teams)
+- **Ready**: All configuration fixes and pre-compiled files committed
 
-### Current Status
-- ✅ **Local Build**: TypeScript compiles successfully (all services present)
-- ✅ **Local Server**: Starts correctly with all services (Slack, Teams, Google Sheets)
-- ✅ **Full Build Process**: `npm run build` works end-to-end locally
-- ✅ **Git Updates**: All fixes committed and pushed multiple times
-- ✅ **Pre-compiled Files**: Backend dist/ directory now committed to git
-- 🔄 **Railway Deploy**: Multiple deployment attempts triggered with different approaches
-- 🔧 **Fallback Strategy**: Railway now has access to pre-compiled TeamsService.js
+### Expected Deployment Outcome
+- **Frontend**: Discord-free interface with only Slack and Teams options
+- **Backend**: Functional with all services (Google Sheets, Slack, Teams)
+- **Security**: Admin pages protected with HTTP Basic Auth
+- **API**: Only `/api/slack/` and `/api/teams/` endpoints available
 
-### Railway Troubleshooting Applied
-1. **Fixed Backend package.json**: Changed build script from echo to `tsc`
-2. **Moved TypeScript to Dependencies**: Available during Railway build
-3. **Updated Railway Config**: Explicit `npm install && npm run build`
-4. **Fixed Configuration Files**: Procfile, nixpacks.toml start commands
-5. **Multiple Deploy Triggers**: Several git pushes to force redeployment
-6. **Added Debug Logging**: Server now shows services directory status on startup
-7. **Enhanced Build Scripts**: Verbose logging to track build process
-8. **🆕 Committed Compiled Files**: Backend dist/ directory with TeamsService.js now in git
-
-### Current Approach
-Since Railway may be having TypeScript compilation issues, we've committed the pre-compiled JavaScript files directly to the repository. This ensures:
-- **TeamsService.js is guaranteed to be available** on Railway
-- **Build process can fail** but server can still start
-- **Immediate resolution** without waiting for Railway build fixes
-
-### Analysis
-- Local build generates `TeamsService.js` correctly
-- Railway may be using cached deployment or different build path
-- All configuration changes have been applied and verified locally
+### Monitor Your Deployment
+Check your Railway dashboard to monitor the deployment progress. The application should be live shortly with the clean Discord-free interface you verified locally.
 
 ## 🚀 Deployment Ready
 
@@ -133,24 +109,37 @@ The application is now ready for:
 
 **Result**: Reduced from ~60+ files to 37 essential files - cleaner, more maintainable codebase.
 
-## ⚡ Latency Performance Projections
+## ⚡ 4-Phase Latency Performance Optimization Roadmap
 
-### Current Performance:
+### Current Performance (Your <$5/month setup):
 - **Sheet Change Detection**: 30-60 seconds (polling-based)
 - **Frontend Updates**: Manual refresh required
 - **Total User Experience**: 35-70+ seconds end-to-end
+- **Cost**: <$5/month on Railway
 
-### With Real-Time Optimizations:
-
-#### Phase 1 (WebSocket + Enhanced Webhooks):
+### Phase 1: WebSocket Frontend + Drive Webhooks
 - **Sheet Change Detection**: < 2 seconds (**15-30x faster**)
 - **Frontend Updates**: < 100ms (real-time)
 - **Total User Experience**: < 3 seconds (**12-25x improvement**)
+- **Cost Impact**: +$1-5/month ($6-10 total)
 
-#### Phase 2 (Advanced Optimizations):
-- **Sheet Change Detection**: < 500ms (**60-120x faster**)
+### Phase 2: Redis Caching + Background Workers  
+- **Sheet Change Detection**: < 1 second (**30-60x faster**)
 - **Frontend Updates**: < 50ms (real-time++)
-- **Total User Experience**: < 1 second (**35-70x improvement**)
+- **Total User Experience**: < 1.5 seconds (**25-45x improvement**)
+- **Cost Impact**: +$5-13/month ($10-18 total)
+
+### Phase 3: Event Architecture + Multi-Region
+- **Sheet Change Detection**: < 500ms (**60-120x faster**)
+- **Frontend Updates**: < 25ms (instant)
+- **Total User Experience**: < 750ms (**50-90x improvement**)
+- **Cost Impact**: +$20-45/month ($25-50 total)
+
+### Phase 4: Enterprise Infrastructure + CDN
+- **Sheet Change Detection**: < 200ms (**150-300x faster**)
+- **Frontend Updates**: < 10ms (instant)
+- **Total User Experience**: < 300ms (**100-200x improvement**)
+- **Cost Impact**: +$45-145/month ($50-150 total)
 
 ## ✨ Ready for Use
 

@@ -1,9 +1,5 @@
 // DataPingo Sheets Connector - Production Railway Deployment
 console.log('🚂 Starting DataPingo Sheets Connector on Railway...');
-
-// Load environment variables from .env file
-require('dotenv').config();
-
 console.log('📍 Working directory:', process.cwd());
 console.log('🔧 Environment:', process.env.NODE_ENV);
 console.log('📂 Directory contents:', require('fs').readdirSync(process.cwd()));
@@ -103,9 +99,6 @@ try {
     
     // ⚠️ SECURITY: Protect sensitive admin files with authentication
     const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'datapingo-admin-2024';
-    console.log('🔑 Admin password configured:', ADMIN_PASSWORD ? 'SET' : 'NOT SET');
-    console.log('🔑 Admin password from env:', process.env.ADMIN_PASSWORD ? 'SET' : 'NOT SET');
-    
     const PROTECTED_FILES = [
         'admin.html',
         'oauth-debug.html', 
@@ -117,9 +110,7 @@ try {
     
     // Admin authentication middleware
     function requireAdminAuth(req, res, next) {
-        console.log('🔍 Auth attempt for:', req.path);
         const authHeader = req.headers.authorization;
-        console.log('🔍 Auth header:', authHeader ? 'Present' : 'Missing');
         
         if (!authHeader || !authHeader.startsWith('Basic ')) {
             res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
@@ -130,15 +121,9 @@ try {
         const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
         const [username, password] = credentials.split(':');
         
-        console.log('🔍 Provided username:', username);
-        console.log('🔍 Expected password:', ADMIN_PASSWORD);
-        console.log('🔍 Provided password matches:', password === ADMIN_PASSWORD);
-        
         if (username === 'admin' && password === ADMIN_PASSWORD) {
-            console.log('✅ Admin authentication successful');
             next();
         } else {
-            console.log('❌ Admin authentication failed');
             res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
             return res.status(401).send('Invalid credentials');
         }

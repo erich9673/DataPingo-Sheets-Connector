@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MonitoringService = void 0;
+const WebSocketService_1 = require("./WebSocketService");
 const logger_1 = require("../utils/logger");
 class MonitoringService {
     constructor(googleSheetsService, uploadedFiles) {
@@ -413,6 +414,15 @@ class MonitoringService {
                 }
             }, intervalMs);
             this.activeJobs.set(jobId, job);
+            // Broadcast job start to connected clients
+            WebSocketService_1.WebSocketService.broadcastJobUpdate({
+                jobId: jobId,
+                status: 'started',
+                message: `Started monitoring "${job.spreadsheetName}" every ${frequencyMinutes} minute(s)`,
+                timestamp: new Date().toISOString(),
+                platform: job.webhookUrl.includes('slack.com') ? 'slack' : 'teams',
+                sheetTitle: job.spreadsheetName
+            });
             (0, logger_1.safeLog)(`✅ Monitoring started for ${job.spreadsheetName} (${sourceType}) every ${frequencyMinutes} minute(s)`);
             return { success: true };
         }
@@ -428,6 +438,15 @@ class MonitoringService {
         (0, logger_1.safeLog)(`    📋 Range: ${job.cellRange}`);
         (0, logger_1.safeLog)(`    🔗 Webhook: ${job.webhookUrl.substring(0, 50)}...`);
         (0, logger_1.safeLog)(`    👤 User: ${job.userEmail || job.userId || 'Unknown'}`);
+        // Broadcast that checking started
+        WebSocketService_1.WebSocketService.broadcastJobUpdate({
+            jobId: job.id,
+            status: 'checking',
+            message: `Checking "${job.spreadsheetName}" for changes...`,
+            timestamp: new Date().toISOString(),
+            platform: job.webhookUrl.includes('slack.com') ? 'slack' : 'teams',
+            sheetTitle: job.spreadsheetName
+        });
         try {
             let currentValues;
             if (job.sourceType === 'uploaded_file') {
@@ -487,6 +506,15 @@ class MonitoringService {
             (0, logger_1.safeLog)(`    🔍 Values are different: ${previousValues ? this.hasValuesChanged(previousValues, currentValues) : 'N/A (no previous values)'}`);
             if (previousValues && this.hasValuesChanged(previousValues, currentValues)) {
                 (0, logger_1.safeLog)(`🚨 [CHANGE DETECTED] Changes found in ${job.spreadsheetName} (${job.sourceType})`);
+                // Broadcast change detection
+                WebSocketService_1.WebSocketService.broadcastJobUpdate({
+                    jobId: job.id,
+                    status: 'change_detected',
+                    message: `Change detected in "${job.spreadsheetName}"`,
+                    timestamp: new Date().toISOString(),
+                    platform: job.webhookUrl.includes('slack.com') ? 'slack' : 'teams',
+                    sheetTitle: job.spreadsheetName
+                });
                 // Find changes - simplified
                 const changes = this.findChangedCells(previousValues, currentValues, job.cellRange);
                 (0, logger_1.safeLog)(`    📍 Changed cells: ${changes.length} cells changed`);
@@ -604,21 +632,116 @@ class MonitoringService {
             (0, logger_1.safeLog)(`    🔗 Webhook URL: ${job.webhookUrl.substring(0, 60)}...`);
             (0, logger_1.safeLog)(`    👤 User mention: ${job.userMention || 'None'}`);
             const spreadsheetName = job.spreadsheetName || this.spreadsheetNames.get(job.sheetId) || 'Unknown Spreadsheet';
-            // Use Slack service for notifications
-            (0, logger_1.safeLog)(`📤 [SLACK SERVICE] Using Slack service for webhook...`);
-            const { SlackService } = await Promise.resolve().then(() => __importStar(require('./SlackService')));
-            const slackService = new SlackService(job.webhookUrl);
-            const result = await slackService.sendNotification('Google Sheets change detected', job.sheetId, change.cellRange, change.oldValue, change.newValue, spreadsheetName, job.userMention || undefined);
-            (0, logger_1.safeLog)(`📊 [NOTIFICATION RESULT] API response:`, result);
-            if (result.success) {
-                (0, logger_1.safeLog)(`✅ [NOTIFICATION SUCCESS] Notification sent successfully for ${change.cellRange}`);
+            const isSlack = job.webhookUrl.includes('slack.com');
+            const platform = isSlack ? 'slack' : 'teams';
+            // Broadcast notification attempt
+            WebSocketService_1.WebSocketService.broadcastJobUpdate({
+                jobId: job.id,
+                status: 'notification_sent',
+                message: `Sending ${platform} notification for "${spreadsheetName}"...`,
+                timestamp: new Date().toISOString(),
+                platform: platform,
+                sheetTitle: spreadsheetName
+            });
+            if (isSlack) {
+                // Use Slack service for notifications
+                (0, logger_1.safeLog)(`📤 [SLACK SERVICE] Using Slack service for webhook...`);
+                const { SlackService } = await Promise.resolve().then(() => __importStar(require('./SlackService')));
+                const slackService = new SlackService(job.webhookUrl);
+                const result = await slackService.sendNotification('Google Sheets change detected', job.sheetId, change.cellRange, change.oldValue, change.newValue, spreadsheetName, job.userMention || undefined);
+                (0, logger_1.safeLog)(`📊 [NOTIFICATION RESULT] API response:`, result);
+                if (result.success) {
+                    (0, logger_1.safeLog)(`✅ [NOTIFICATION SUCCESS] Notification sent successfully for ${change.cellRange}`);
+                    // Broadcast success
+                    WebSocketService_1.WebSocketService.broadcastNotificationSent({
+                        jobId: job.id,
+                        platform: 'slack',
+                        sheetTitle: spreadsheetName,
+                        timestamp: new Date().toISOString(),
+                        success: true
+                    });
+                }
+                else {
+                    (0, logger_1.safeError)(`❌ [NOTIFICATION FAILED] Notification failed: ${result.error}`);
+                    // Broadcast failure
+                    WebSocketService_1.WebSocketService.broadcastNotificationSent({
+                        jobId: job.id,
+                        platform: 'slack',
+                        sheetTitle: spreadsheetName,
+                        timestamp: new Date().toISOString(),
+                        success: false,
+                        error: result.error
+                    });
+                }
             }
             else {
-                (0, logger_1.safeError)(`❌ [NOTIFICATION FAILED] Notification failed: ${result.error}`);
+                // Use Teams service for notifications
+                (0, logger_1.safeLog)(`📤 [TEAMS SERVICE] Using Teams service for webhook...`);
+                const { TeamsService } = await Promise.resolve().then(() => __importStar(require('./TeamsService')));
+                // Format message for Teams
+                const teamsMessage = {
+                    text: `📊 Google Sheets change detected in "${spreadsheetName}"`,
+                    attachments: [{
+                            fields: [
+                                {
+                                    title: "Sheet",
+                                    value: spreadsheetName
+                                },
+                                {
+                                    title: "Cell Range",
+                                    value: change.cellRange
+                                },
+                                {
+                                    title: "Old Value",
+                                    value: change.oldValue || 'Empty'
+                                },
+                                {
+                                    title: "New Value",
+                                    value: change.newValue || 'Empty'
+                                },
+                                {
+                                    title: "User Mention",
+                                    value: job.userMention || 'None'
+                                }
+                            ]
+                        }]
+                };
+                const success = await TeamsService.sendMessage(job.webhookUrl, teamsMessage);
+                (0, logger_1.safeLog)(`📊 [NOTIFICATION RESULT] Teams notification:`, { success });
+                if (success) {
+                    (0, logger_1.safeLog)(`✅ [NOTIFICATION SUCCESS] Teams notification sent successfully for ${change.cellRange}`);
+                    // Broadcast success
+                    WebSocketService_1.WebSocketService.broadcastNotificationSent({
+                        jobId: job.id,
+                        platform: 'teams',
+                        sheetTitle: spreadsheetName,
+                        timestamp: new Date().toISOString(),
+                        success: true
+                    });
+                }
+                else {
+                    (0, logger_1.safeError)(`❌ [NOTIFICATION FAILED] Teams notification failed`);
+                    // Broadcast failure
+                    WebSocketService_1.WebSocketService.broadcastNotificationSent({
+                        jobId: job.id,
+                        platform: 'teams',
+                        sheetTitle: spreadsheetName,
+                        timestamp: new Date().toISOString(),
+                        success: false,
+                        error: 'Teams webhook failed'
+                    });
+                }
             }
         }
         catch (error) {
             (0, logger_1.safeError)(`💥 [NOTIFICATION ERROR] Error sending notification for job ${job.id}:`, error);
+            // Broadcast error
+            WebSocketService_1.WebSocketService.broadcastSystemStatus({
+                type: 'error',
+                message: `Notification error for job ${job.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timestamp: new Date().toISOString(),
+                details: { jobId: job.id, sheetTitle: job.spreadsheetName }
+            });
         }
     }
     async stopMonitoring(jobId) {

@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@types/multer": "^2.0.0",
+    "@types/ws": "^8.18.1",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
@@ -40,6 +41,7 @@
     "sqlite3": "^5.1.6",
     "typescript": "^5.2.2",
     "uuid": "^9.0.0",
+    "ws": "^8.18.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
