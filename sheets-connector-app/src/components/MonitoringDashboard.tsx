@@ -194,7 +194,6 @@ const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
           <div className="export-section">
             <h5>📥 Export Data</h5>
             <p>Download monitoring data or configuration for backup or sharing.</p>
-            
             <button
               onClick={() => exportJobData(spreadsheet.id, 'json')}
               className="btn-secondary"

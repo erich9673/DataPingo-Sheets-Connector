@@ -1582,42 +1582,48 @@ app.post('/api/monitoring/stop/:jobId', async (req, res) => {
         });
     }
 });
-app.post('/api/monitoring/stop-all', async (req, res) => {
+// Stop a specific monitoring job (admin)
+app.post('/api/admin/monitoring-jobs/stop/:jobId', async (req, res) => {
     try {
-        const authToken = req.query.authToken || req.headers['x-auth-token'];
-        if (!authToken) {
-            return res.status(400).json({ success: false, error: 'Auth token required to stop user jobs' });
+        const jobId = req.params.jobId;
+        if (!jobId) {
+            return res.status(400).json({ success: false, error: 'Missing jobId' });
         }
-        // Get user email for persistent job identification
-        const tokenData = authTokens.get(authToken);
-        const userEmail = tokenData && tokenData.email;
-        // Get user's jobs (both current session and previous sessions) and stop them individually
-        const userJobs = monitoringService.getActiveJobsForCurrentUser(authToken, userEmail);
-        let stoppedCount = 0;
-        for (const job of userJobs) {
-            try {
-                await monitoringService.stopMonitoring(job.id);
-                stoppedCount++;
-            }
-            catch (error) {
-                (0, logger_1.safeError)(`Error stopping job ${job.id}:`, error);
-            }
+        // Find the full job ID (admin dashboard uses truncated ID)
+        const allJobs = monitoringService.getActiveJobs();
+        const job = allJobs.find(j => j.id.startsWith(jobId.replace('...', '')) || j.id === jobId);
+        const fullJobId = job ? job.id : jobId;
+        const result = await monitoringService.stopMonitoring(fullJobId);
+        if (result.success) {
+            (0, logger_1.safeLog)(`🛑 [ADMIN] Stopped monitoring job: ${fullJobId}`);
+            return res.json({ success: true });
         }
-        const emailInfo = userEmail ? ` (${userEmail.substring(0, 5)}***)` : '';
-        res.json({
-            success: true,
-            message: `All user monitoring jobs stopped`,
-            stoppedCount: stoppedCount,
-            totalUserJobs: userJobs.length,
-            userInfo: `${authToken.substring(0, 8)}...${emailInfo}`
-        });
+        else {
+            (0, logger_1.safeError)('Failed to stop job:', result.error);
+            return res.status(500).json({ success: false, error: result.error || 'Failed to stop job' });
+        }
     }
     catch (error) {
-        (0, logger_1.safeError)('Stop all jobs error:', error);
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        (0, logger_1.safeError)('Stop monitoring job error:', error);
+        return res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+});
+// Stop all monitoring jobs (admin)
+app.post('/api/admin/monitoring-jobs/stop-all', async (req, res) => {
+    try {
+        const allJobs = monitoringService.getActiveJobs();
+        let stoppedCount = 0;
+        for (const job of allJobs) {
+            const result = await monitoringService.stopMonitoring(job.id);
+            if (result.success)
+                stoppedCount++;
+        }
+        (0, logger_1.safeLog)(`🛑 [ADMIN] Stopped all monitoring jobs (${stoppedCount} total)`);
+        return res.json({ success: true, stopped: stoppedCount });
+    }
+    catch (error) {
+        (0, logger_1.safeError)('Stop all monitoring jobs error:', error);
+        return res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 });
 // Debug Endpoints (for troubleshooting)

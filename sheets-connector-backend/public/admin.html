@@ -576,12 +576,10 @@
 
         function displayMonitoringJobs(jobs) {
             const container = document.getElementById('monitoringJobsList');
-            
             if (!jobs || jobs.length === 0) {
                 container.innerHTML = '<div class="no-jobs">📭 No monitoring jobs currently active</div>';
                 return;
             }
-
             const jobsHtml = jobs.map(job => `
                 <div class="job-card">
                     <div class="job-header">
@@ -590,7 +588,6 @@
                             ${job.isActive ? '🟢 Active' : '🔴 Inactive'}
                         </div>
                     </div>
-                    
                     <div class="job-details">
                         <div class="job-detail">
                             <span class="job-detail-label">Range:</span>
@@ -617,21 +614,64 @@
                             <span class="job-detail-value">${job.lastCheckedAgo}</span>
                         </div>
                     </div>
-                    
                     ${job.conditionsCount > 0 ? `
                         <div class="job-conditions">
                             <strong>📋 Conditions (${job.conditionsCount}):</strong> ${job.conditionTypes || 'Various'}
                         </div>
                     ` : ''}
-                    
                     <div style="margin-top: 10px; font-size: 0.8em; color: #6c757d;">
                         🔗 Webhook: ${job.webhookUrl}
                         ${job.userMention && job.userMention !== 'None' ? ` | 👤 Mentions: ${job.userMention}` : ''}
                     </div>
+                    <div class="buttons" style="margin-top: 10px;">
+                        <button class="btn btn-deny" onclick="stopMonitoringJob('${job.id}')">🛑 Stop Job</button>
+                    </div>
                 </div>
             `).join('');
+            // Add Stop All Jobs button above the list
+            container.innerHTML = `
+                <div style="text-align:right; margin-bottom:10px;">
+                    <button class="btn btn-deny" onclick="stopAllMonitoringJobs()">🛑 Stop All Jobs</button>
+                </div>
+                ${jobsHtml}
+            `;
+        }
 
-            container.innerHTML = jobsHtml;
+        async function stopMonitoringJob(jobId) {
+            try {
+                const response = await fetch(`${API_BASE}/admin/monitoring-jobs/stop/${jobId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ Monitoring job stopped successfully', 'success');
+                    loadMonitoringJobs();
+                } else {
+                    showStatus('❌ Failed to stop job: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Network error stopping job: ' + error.message, 'error');
+            }
+        }
+
+        async function stopAllMonitoringJobs() {
+            if (!confirm('Are you sure you want to stop ALL monitoring jobs?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/admin/monitoring-jobs/stop-all`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('✅ All monitoring jobs stopped', 'success');
+                    loadMonitoringJobs();
+                } else {
+                    showStatus('❌ Failed to stop all jobs: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Network error stopping all jobs: ' + error.message, 'error');
+            }
         }
 
         async function loadAutoApprovalStatus() {
