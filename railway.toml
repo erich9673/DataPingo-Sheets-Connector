@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "rm -rf build dist && npm run build"
+buildCommand = "export NODE_OPTIONS=--max_old_space_size=1024 && rm -rf build dist && npm run build"
 
 [deploy]
 startCommand = "npm start"
